@@ -1669,6 +1669,39 @@ pub enum Event {
         /// The new state of the overview.
         is_open: bool,
     },
+    /// The overview open/close animation progress changed.
+    ///
+    /// This is a continuous, per-frame value driving the overview zoom, emitted while the
+    /// overview is animating or being dragged with a gesture. It is global (not per-output).
+    OverviewProgress {
+        /// Overview progress: `0.0` fully closed, `1.0` fully open.
+        progress: f64,
+    },
+    /// The horizontal view offset of the focused output's active workspace changed.
+    ///
+    /// This is a continuous, per-frame value emitted while scrolling columns (3-finger swipe,
+    /// keyboard column switch, DnD edge auto-scroll). The units are logical pixels.
+    ViewOffsetChanged {
+        /// Name of the focused output.
+        output: String,
+        /// Horizontal scroll position in logical pixels (unbounded).
+        view_pos: f64,
+        /// Index of the active column.
+        active_column_idx: usize,
+    },
+    /// The vertical (fractional) workspace position of the focused output changed.
+    ///
+    /// This is a continuous, per-frame value emitted while switching workspaces (3-finger
+    /// vertical swipe, keyboard workspace switch). It can briefly overshoot past the ends due to
+    /// rubber-banding during a gesture.
+    WorkspaceSwitchProgress {
+        /// Name of the focused output.
+        output: String,
+        /// The current, possibly fractional, workspace position used for rendering.
+        workspace_idx: f64,
+        /// Index of the active workspace.
+        active_workspace_idx: usize,
+    },
     /// The configuration was reloaded.
     ///
     /// You will always receive this event when connecting to the event stream, indicating the last

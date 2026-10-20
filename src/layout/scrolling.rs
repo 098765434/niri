@@ -3733,7 +3733,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         &self.options
     }
 
-    #[cfg(test)]
     pub fn active_column_idx(&self) -> usize {
         self.active_column_idx
     }

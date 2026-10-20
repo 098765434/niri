@@ -480,6 +480,29 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                     Event::OverviewOpenedOrClosed { is_open: opened } => {
                         println!("Overview toggled: {opened}");
                     }
+                    Event::OverviewProgress { progress } => {
+                        println!("Overview progress: {progress}");
+                    }
+                    Event::ViewOffsetChanged {
+                        output,
+                        view_pos,
+                        active_column_idx,
+                    } => {
+                        println!(
+                            "View offset changed on {output}: \
+                             view_pos {view_pos}, active column {active_column_idx}"
+                        );
+                    }
+                    Event::WorkspaceSwitchProgress {
+                        output,
+                        workspace_idx,
+                        active_workspace_idx,
+                    } => {
+                        println!(
+                            "Workspace switch progress on {output}: \
+                             workspace_idx {workspace_idx}, active workspace {active_workspace_idx}"
+                        );
+                    }
                     Event::ConfigLoaded { failed } => {
                         let status = if failed {
                             "with an error"
