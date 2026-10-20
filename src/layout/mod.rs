@@ -5003,6 +5003,44 @@ impl<W: LayoutElement> Layout<W> {
     pub fn is_overview_open(&self) -> bool {
         self.overview_open
     }
+
+    /// Global overview open/close progress: `0.0` closed, `1.0` fully open.
+    ///
+    /// Tracks the live value during the overview animation or gesture, matching what is rendered.
+    pub fn overview_progress_value(&self) -> f64 {
+        self.overview_progress.as_ref().map_or(0., |p| p.value())
+    }
+
+    /// Scrolling and workspace-switch values of the focused output's active workspace.
+    ///
+    /// Returns `None` when there is no active monitor (no outputs connected).
+    pub fn active_view_state(&self) -> Option<ActiveViewState> {
+        let mon = self.active_monitor_ref()?;
+        let ws = mon.active_workspace_ref();
+        Some(ActiveViewState {
+            output: mon.output_name().clone(),
+            view_pos: ws.view_pos(),
+            active_column_idx: ws.active_column_idx(),
+            workspace_idx: mon.workspace_render_idx(),
+            active_workspace_idx: mon.active_workspace_idx(),
+        })
+    }
+}
+
+/// Live scrolling and workspace-switch values of the focused output, read for the IPC event
+/// stream (horizontal view offset and vertical workspace switch progress).
+#[derive(Debug, Clone)]
+pub struct ActiveViewState {
+    /// Name of the focused output.
+    pub output: String,
+    /// Horizontal scroll position of the active workspace, in logical pixels.
+    pub view_pos: f64,
+    /// Index of the active column.
+    pub active_column_idx: usize,
+    /// The current, possibly fractional, workspace position used for rendering.
+    pub workspace_idx: f64,
+    /// Index of the active workspace.
+    pub active_workspace_idx: usize,
 }
 
 impl<W: LayoutElement> Default for MonitorSet<W> {

@@ -584,6 +584,9 @@ impl State {
         self.ipc_refresh_workspaces();
         self.ipc_refresh_windows();
         self.ipc_refresh_overview();
+        self.ipc_refresh_overview_progress();
+        self.ipc_refresh_view_offset();
+        self.ipc_refresh_workspace_switch();
     }
 
     fn ipc_refresh_workspaces(&mut self) {
@@ -802,6 +805,85 @@ impl State {
         }
 
         let event = Event::OverviewOpenedOrClosed { is_open };
+        state.apply(event.clone());
+        server.send_event(event);
+    }
+
+    pub fn ipc_refresh_overview_progress(&mut self) {
+        let Some(server) = &self.niri.ipc_server else {
+            return;
+        };
+
+        let mut state = server.event_stream_state.borrow_mut();
+        let state = &mut state.overview_progress;
+        let progress = self.niri.layout.overview_progress_value();
+
+        // Coalesce: skip sub-epsilon changes so a resting compositor emits nothing.
+        if state.seen && (state.progress - progress).abs() < 0.001 {
+            return;
+        }
+
+        let event = Event::OverviewProgress { progress };
+        state.apply(event.clone());
+        server.send_event(event);
+    }
+
+    pub fn ipc_refresh_view_offset(&mut self) {
+        let Some(server) = &self.niri.ipc_server else {
+            return;
+        };
+
+        let Some(v) = self.niri.layout.active_view_state() else {
+            return;
+        };
+
+        let mut state = server.event_stream_state.borrow_mut();
+        let state = &mut state.view_offset;
+
+        // Coalesce: 1px epsilon on the view position; always emit on column/output change.
+        let changed = !state.seen
+            || (state.view_pos - v.view_pos).abs() >= 1.0
+            || state.active_column_idx != v.active_column_idx
+            || state.output != v.output;
+        if !changed {
+            return;
+        }
+
+        let event = Event::ViewOffsetChanged {
+            output: v.output,
+            view_pos: v.view_pos,
+            active_column_idx: v.active_column_idx,
+        };
+        state.apply(event.clone());
+        server.send_event(event);
+    }
+
+    pub fn ipc_refresh_workspace_switch(&mut self) {
+        let Some(server) = &self.niri.ipc_server else {
+            return;
+        };
+
+        let Some(v) = self.niri.layout.active_view_state() else {
+            return;
+        };
+
+        let mut state = server.event_stream_state.borrow_mut();
+        let state = &mut state.workspace_switch;
+
+        // Coalesce: ~250 steps per workspace; always emit on active-ws/output change.
+        let changed = !state.seen
+            || (state.workspace_idx - v.workspace_idx).abs() >= 0.004
+            || state.active_workspace_idx != v.active_workspace_idx
+            || state.output != v.output;
+        if !changed {
+            return;
+        }
+
+        let event = Event::WorkspaceSwitchProgress {
+            output: v.output,
+            workspace_idx: v.workspace_idx,
+            active_workspace_idx: v.active_workspace_idx,
+        };
         state.apply(event.clone());
         server.send_event(event);
     }

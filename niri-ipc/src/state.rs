@@ -44,6 +44,15 @@ pub struct EventStreamState {
     /// State of the overview.
     pub overview: OverviewState,
 
+    /// State of the overview open/close progress.
+    pub overview_progress: OverviewProgressState,
+
+    /// State of the focused output's horizontal view offset.
+    pub view_offset: ViewOffsetState,
+
+    /// State of the focused output's vertical workspace switch progress.
+    pub workspace_switch: WorkspaceSwitchState,
+
     /// State of the config.
     pub config: ConfigState,
 
@@ -79,6 +88,41 @@ pub struct OverviewState {
     pub is_open: bool,
 }
 
+/// The overview open/close progress communicated over the event stream.
+#[derive(Debug, Default)]
+pub struct OverviewProgressState {
+    /// Overview progress: `0.0` fully closed, `1.0` fully open.
+    pub progress: f64,
+    /// Whether a value has been received yet.
+    pub seen: bool,
+}
+
+/// The focused output's horizontal view offset communicated over the event stream.
+#[derive(Debug, Default)]
+pub struct ViewOffsetState {
+    /// Name of the focused output.
+    pub output: String,
+    /// Horizontal scroll position in logical pixels.
+    pub view_pos: f64,
+    /// Index of the active column.
+    pub active_column_idx: usize,
+    /// Whether a value has been received yet.
+    pub seen: bool,
+}
+
+/// The focused output's vertical workspace switch progress communicated over the event stream.
+#[derive(Debug, Default)]
+pub struct WorkspaceSwitchState {
+    /// Name of the focused output.
+    pub output: String,
+    /// The current, possibly fractional, workspace position used for rendering.
+    pub workspace_idx: f64,
+    /// Index of the active workspace.
+    pub active_workspace_idx: usize,
+    /// Whether a value has been received yet.
+    pub seen: bool,
+}
+
 /// The config state communicated over the event stream.
 #[derive(Debug, Default)]
 pub struct ConfigState {
@@ -100,6 +144,9 @@ impl EventStreamStatePart for EventStreamState {
         events.extend(self.windows.replicate());
         events.extend(self.keyboard_layouts.replicate());
         events.extend(self.overview.replicate());
+        events.extend(self.overview_progress.replicate());
+        events.extend(self.view_offset.replicate());
+        events.extend(self.workspace_switch.replicate());
         events.extend(self.config.replicate());
         events.extend(self.casts.replicate());
         events
@@ -110,6 +157,9 @@ impl EventStreamStatePart for EventStreamState {
         let event = self.windows.apply(event)?;
         let event = self.keyboard_layouts.apply(event)?;
         let event = self.overview.apply(event)?;
+        let event = self.overview_progress.apply(event)?;
+        let event = self.view_offset.apply(event)?;
+        let event = self.workspace_switch.apply(event)?;
         let event = self.config.apply(event)?;
         let event = self.casts.apply(event)?;
         Some(event)
@@ -273,6 +323,88 @@ impl EventStreamStatePart for OverviewState {
         match event {
             Event::OverviewOpenedOrClosed { is_open } => {
                 self.is_open = is_open;
+            }
+            event => return Some(event),
+        }
+        None
+    }
+}
+
+impl EventStreamStatePart for OverviewProgressState {
+    fn replicate(&self) -> Vec<Event> {
+        if !self.seen {
+            return Vec::new();
+        }
+        vec![Event::OverviewProgress {
+            progress: self.progress,
+        }]
+    }
+
+    fn apply(&mut self, event: Event) -> Option<Event> {
+        match event {
+            Event::OverviewProgress { progress } => {
+                self.progress = progress;
+                self.seen = true;
+            }
+            event => return Some(event),
+        }
+        None
+    }
+}
+
+impl EventStreamStatePart for ViewOffsetState {
+    fn replicate(&self) -> Vec<Event> {
+        if !self.seen {
+            return Vec::new();
+        }
+        vec![Event::ViewOffsetChanged {
+            output: self.output.clone(),
+            view_pos: self.view_pos,
+            active_column_idx: self.active_column_idx,
+        }]
+    }
+
+    fn apply(&mut self, event: Event) -> Option<Event> {
+        match event {
+            Event::ViewOffsetChanged {
+                output,
+                view_pos,
+                active_column_idx,
+            } => {
+                self.output = output;
+                self.view_pos = view_pos;
+                self.active_column_idx = active_column_idx;
+                self.seen = true;
+            }
+            event => return Some(event),
+        }
+        None
+    }
+}
+
+impl EventStreamStatePart for WorkspaceSwitchState {
+    fn replicate(&self) -> Vec<Event> {
+        if !self.seen {
+            return Vec::new();
+        }
+        vec![Event::WorkspaceSwitchProgress {
+            output: self.output.clone(),
+            workspace_idx: self.workspace_idx,
+            active_workspace_idx: self.active_workspace_idx,
+        }]
+    }
+
+    fn apply(&mut self, event: Event) -> Option<Event> {
+        match event {
+            Event::WorkspaceSwitchProgress {
+                output,
+                workspace_idx,
+                active_workspace_idx,
+            } => {
+                self.output = output;
+                self.workspace_idx = workspace_idx;
+                self.active_workspace_idx = active_workspace_idx;
+                self.seen = true;
             }
             event => return Some(event),
         }

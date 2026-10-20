@@ -1977,6 +1977,16 @@ impl<W: LayoutElement> Workspace<W> {
         self.layout_config.as_ref()
     }
 
+    /// Horizontal scroll position of the scrolling space, in logical pixels.
+    pub fn view_pos(&self) -> f64 {
+        self.scrolling.view_pos()
+    }
+
+    /// Index of the scrolling space's active column.
+    pub fn active_column_idx(&self) -> usize {
+        self.scrolling.active_column_idx()
+    }
+
     #[cfg(test)]
     pub fn scrolling(&self) -> &ScrollingSpace<W> {
         &self.scrolling
