@@ -2295,10 +2295,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.column_x(self.active_column_idx) + self.view_offset.current()
     }
 
-    pub fn active_column_idx(&self) -> usize {
-        self.active_column_idx
-    }
-
     pub fn target_view_pos(&self) -> f64 {
         self.column_x(self.active_column_idx) + self.view_offset.target()
     }
@@ -3737,7 +3733,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         &self.options
     }
 
-    #[cfg(test)]
     pub fn active_column_idx(&self) -> usize {
         self.active_column_idx
     }
