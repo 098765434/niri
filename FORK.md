@@ -1,8 +1,8 @@
 # Fork notes — niri
 
-This is a personal fork of [niri](https://github.com/YaLTeR/niri), the scrollable-tiling
-Wayland compositor. It adds **live gesture-progress IPC events** on top of a tagged upstream
-release; everything else is stock upstream.
+A fork of [niri](https://github.com/YaLTeR/niri), the scrollable-tiling Wayland compositor. It adds
+**live gesture-progress IPC events** on top of a tagged upstream release; everything else is stock
+upstream. The feature is intended to be proposed upstream — the fork stays a thin, rebasable series.
 
 ## Provenance
 
@@ -34,18 +34,25 @@ Touched files: `niri-ipc/src/lib.rs`, `niri-ipc/src/state.rs`, `src/ipc/server.r
 
 ## Consumed by
 
-Built as the system compositor via the `niri-fork` input in `~/nixos-config/flake.nix`
-(`programs.niri.package`). Commit on this branch, then `nix flake update niri-fork` and rebuild.
+Built as the compositor via a flake input (`programs.niri.package`) — e.g. in a NixOS config:
+```nix
+niri-fork = { url = "github:098765434/niri/gesture-ipc-events"; inputs.nixpkgs.follows = "nixpkgs"; };
+```
+Commit on this branch, then `nix flake update niri-fork` and rebuild.
 
 ## Updating to a new upstream release
 
-This is a shallow clone; the full procedure is in the workspace docs:
-**`../docs/runbooks/update-niri.md`**. In short:
+The fork keeps its commits on top of a release tag, so updating is a rebase onto the new tag:
 
-```
-git fetch --unshallow --tags upstream        # first time only; then: git fetch --tags upstream
+```sh
+git fetch --tags upstream
 git rebase --onto <new-tag> v26.04 gesture-ipc-events
-# resolve, then build + test in the dev shell:
+# On conflicts, find commits upstream already has and skip them:
+git range-diff v26.04 <new-tag> gesture-ipc-events
+git rebase --skip                            # for each commit range-diff shows as upstreamed
+# then build + test in the dev shell:
 nix develop -c cargo build && nix develop -c cargo test
-# then re-pin + rebuild the system (see the runbook)
 ```
+
+Then update the base tag (`git tag -f`) and re-pin the consuming config (`nix flake update
+niri-fork`).
