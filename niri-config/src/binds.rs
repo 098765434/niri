@@ -7,7 +7,7 @@ use bitflags::bitflags;
 use knuffel::errors::DecodeError;
 use miette::miette;
 use niri_ipc::{
-    ColumnDisplay, LayoutSwitchTarget, PositionChange, SizeChange, WorkspaceReferenceArg,
+    ColumnDisplay, LayoutSwitchTarget, PinEdge, PositionChange, SizeChange, WorkspaceReferenceArg,
 };
 use smithay::input::keyboard::keysyms::KEY_NoSymbol;
 use smithay::input::keyboard::xkb::{keysym_from_name, KEYSYM_CASE_INSENSITIVE, KEYSYM_NO_FLAGS};
@@ -209,6 +209,10 @@ pub enum Action {
     ToggleColumnTabbedDisplay,
     SetColumnDisplay(#[knuffel(argument, str)] ColumnDisplay),
     CenterColumn,
+    PinColumn(#[knuffel(property(name = "edge"), str)] Option<PinEdge>),
+    UnpinColumn,
+    ToggleColumnPinned(#[knuffel(property(name = "edge"), str)] Option<PinEdge>),
+    FocusPinned,
     CenterWindow,
     #[knuffel(skip)]
     CenterWindowById(u64),
@@ -501,6 +505,10 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::ToggleColumnTabbedDisplay {} => Self::ToggleColumnTabbedDisplay,
             niri_ipc::Action::SetColumnDisplay { display } => Self::SetColumnDisplay(display),
             niri_ipc::Action::CenterColumn {} => Self::CenterColumn,
+            niri_ipc::Action::PinColumn { edge } => Self::PinColumn(edge),
+            niri_ipc::Action::UnpinColumn {} => Self::UnpinColumn,
+            niri_ipc::Action::ToggleColumnPinned { edge } => Self::ToggleColumnPinned(edge),
+            niri_ipc::Action::FocusPinned {} => Self::FocusPinned,
             niri_ipc::Action::CenterWindow { id: None } => Self::CenterWindow,
             niri_ipc::Action::CenterWindow { id: Some(id) } => Self::CenterWindowById(id),
             niri_ipc::Action::CenterVisibleColumns {} => Self::CenterVisibleColumns,

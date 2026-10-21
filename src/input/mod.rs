@@ -9,7 +9,7 @@ use input::event::gesture::GestureEventCoordinates as _;
 use niri_config::{
     Action, Bind, Binds, Config, Key, ModKey, Modifiers, MruDirection, SwitchBinds, Trigger,
 };
-use niri_ipc::LayoutSwitchTarget;
+use niri_ipc::{LayoutSwitchTarget, PinEdge};
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, AxisSource, ButtonState, Device, DeviceCapability, Event,
     GestureBeginEvent, GestureEndEvent, GesturePinchUpdateEvent as _, GestureSwipeUpdateEvent as _,
@@ -1619,6 +1619,32 @@ impl State {
             }
             Action::CenterColumn => {
                 self.niri.layout.center_column();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::PinColumn(edge) => {
+                self.niri.layout.pin_column(edge.unwrap_or(PinEdge::Left));
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::UnpinColumn => {
+                self.niri.layout.unpin_column();
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::ToggleColumnPinned(edge) => {
+                self.niri
+                    .layout
+                    .toggle_column_pinned(edge.unwrap_or(PinEdge::Left));
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusPinned => {
+                self.niri.layout.focus_pinned();
+                self.maybe_warp_cursor_to_focus();
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }

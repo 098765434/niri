@@ -868,6 +868,8 @@ impl<W: LayoutElement> Tile<W> {
             window_size: self.window().size().into(),
             tile_pos_in_workspace_view: None,
             window_offset_in_tile: self.window_loc().into(),
+            is_pinned: false,
+            pin_edge: None,
         }
     }
 

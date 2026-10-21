@@ -404,6 +404,10 @@ fn arbitrary_column_display() -> impl Strategy<Value = ColumnDisplay> {
     prop_oneof![Just(ColumnDisplay::Normal), Just(ColumnDisplay::Tabbed)]
 }
 
+fn arbitrary_pin_edge() -> impl Strategy<Value = PinEdge> {
+    prop_oneof![Just(PinEdge::Left), Just(PinEdge::Right)]
+}
+
 #[derive(Debug, Clone, Arbitrary)]
 enum Op {
     AddOutput(#[proptest(strategy = "1..=5usize")] usize),
@@ -512,6 +516,10 @@ enum Op {
     ToggleColumnTabbedDisplay,
     SetColumnDisplay(#[proptest(strategy = "arbitrary_column_display()")] ColumnDisplay),
     CenterColumn,
+    PinColumn(#[proptest(strategy = "arbitrary_pin_edge()")] PinEdge),
+    UnpinColumn,
+    ToggleColumnPinned(#[proptest(strategy = "arbitrary_pin_edge()")] PinEdge),
+    FocusPinned,
     CenterWindow {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -1174,6 +1182,10 @@ impl Op {
             Op::ToggleColumnTabbedDisplay => layout.toggle_column_tabbed_display(),
             Op::SetColumnDisplay(display) => layout.set_column_display(display),
             Op::CenterColumn => layout.center_column(),
+            Op::PinColumn(edge) => layout.pin_column(edge),
+            Op::UnpinColumn => layout.unpin_column(),
+            Op::ToggleColumnPinned(edge) => layout.toggle_column_pinned(edge),
+            Op::FocusPinned => layout.focus_pinned(),
             Op::CenterWindow { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.center_window(id.as_ref());
@@ -1723,6 +1735,11 @@ fn operations_dont_panic() {
         Op::ConsumeWindowIntoColumn,
         Op::ExpelWindowFromColumn,
         Op::CenterColumn,
+        Op::PinColumn(PinEdge::Left),
+        Op::PinColumn(PinEdge::Right),
+        Op::ToggleColumnPinned(PinEdge::Left),
+        Op::UnpinColumn,
+        Op::FocusPinned,
         Op::FocusWorkspaceDown,
         Op::FocusWorkspaceUp,
         Op::FocusWorkspace(1),
@@ -1897,6 +1914,11 @@ fn operations_from_starting_state_dont_panic() {
         Op::ConsumeWindowIntoColumn,
         Op::ExpelWindowFromColumn,
         Op::CenterColumn,
+        Op::PinColumn(PinEdge::Left),
+        Op::PinColumn(PinEdge::Right),
+        Op::ToggleColumnPinned(PinEdge::Left),
+        Op::UnpinColumn,
+        Op::FocusPinned,
         Op::FocusWorkspaceDown,
         Op::FocusWorkspaceUp,
         Op::FocusWorkspace(1),
@@ -3928,4 +3950,113 @@ proptest! {
 
         check_ops_with_options(options, ops);
     }
+}
+
+#[cfg(test)]
+fn pinned_window_count(layout: &Layout<TestWindow>) -> usize {
+    let mut n = 0;
+    layout.with_windows(|_, _, _, window_layout| {
+        if window_layout.is_pinned {
+            n += 1;
+        }
+    });
+    n
+}
+
+#[test]
+fn pinned_column_pin_toggle_unpin() {
+    let mut layout = check_ops([
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(0),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+    ]);
+
+    check_ops_on_layout(&mut layout, [Op::PinColumn(PinEdge::Right)]);
+    assert_eq!(pinned_window_count(&layout), 1);
+
+    check_ops_on_layout(&mut layout, [Op::UnpinColumn]);
+    assert_eq!(pinned_window_count(&layout), 0);
+
+    check_ops_on_layout(&mut layout, [Op::ToggleColumnPinned(PinEdge::Left)]);
+    assert_eq!(pinned_window_count(&layout), 1);
+    check_ops_on_layout(&mut layout, [Op::ToggleColumnPinned(PinEdge::Left)]);
+    assert_eq!(pinned_window_count(&layout), 0);
+}
+
+#[test]
+fn pinned_column_max_two_per_edge() {
+    let mut layout = check_ops([
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(0),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(3),
+        },
+    ]);
+
+    // Pin three separate columns to the right edge; the third must be rejected (max two per edge).
+    check_ops_on_layout(&mut layout, [Op::PinColumn(PinEdge::Right)]);
+    check_ops_on_layout(
+        &mut layout,
+        [Op::FocusColumnLeft, Op::PinColumn(PinEdge::Right)],
+    );
+    check_ops_on_layout(
+        &mut layout,
+        [Op::FocusColumnLeft, Op::PinColumn(PinEdge::Right)],
+    );
+    assert_eq!(pinned_window_count(&layout), 2);
+}
+
+#[test]
+fn pinned_column_auto_unpins_on_close() {
+    let mut layout = check_ops([
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(0),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+    ]);
+
+    check_ops_on_layout(&mut layout, [Op::PinColumn(PinEdge::Left)]);
+    assert_eq!(pinned_window_count(&layout), 1);
+
+    // Closing the pinned column's only window removes the column and collapses its rail.
+    check_ops_on_layout(&mut layout, [Op::CloseWindow(1)]);
+    assert_eq!(pinned_window_count(&layout), 0);
+}
+
+#[test]
+fn pinned_column_unpins_for_fullscreen() {
+    let mut layout = check_ops([
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(0),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+    ]);
+
+    check_ops_on_layout(&mut layout, [Op::PinColumn(PinEdge::Left)]);
+    assert_eq!(pinned_window_count(&layout), 1);
+
+    // Fullscreen wants the whole output, so a pinned column is unpinned for the duration and
+    // re-pinned on unfullscreen.
+    check_ops_on_layout(&mut layout, [Op::FullscreenWindow(1)]);
+    assert_eq!(pinned_window_count(&layout), 0);
+    check_ops_on_layout(&mut layout, [Op::FullscreenWindow(1)]);
+    assert_eq!(pinned_window_count(&layout), 1);
 }

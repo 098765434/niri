@@ -6,7 +6,7 @@ use niri_config::utils::MergeWith as _;
 use niri_config::{
     CenterFocusedColumn, CornerRadius, OutputName, PresetSize, Workspace as WorkspaceConfig,
 };
-use niri_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
+use niri_ipc::{ColumnDisplay, PinEdge, PositionChange, SizeChange, WindowLayout};
 use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::desktop::{layer_map_for_output, Window};
@@ -1147,6 +1147,34 @@ impl<W: LayoutElement> Workspace<W> {
             return;
         }
         self.scrolling.set_column_display(display);
+    }
+
+    pub fn pin_column(&mut self, edge: PinEdge) {
+        if self.floating_is_active.get() {
+            return;
+        }
+        self.scrolling.pin_column(edge);
+    }
+
+    pub fn unpin_column(&mut self) {
+        if self.floating_is_active.get() {
+            return;
+        }
+        self.scrolling.unpin_column();
+    }
+
+    pub fn toggle_column_pinned(&mut self, edge: PinEdge) {
+        if self.floating_is_active.get() {
+            return;
+        }
+        self.scrolling.toggle_column_pinned(edge);
+    }
+
+    pub fn focus_pinned(&mut self) -> bool {
+        if self.floating_is_active.get() {
+            return false;
+        }
+        self.scrolling.focus_pinned()
     }
 
     pub fn center_column(&mut self) {

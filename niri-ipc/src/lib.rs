@@ -456,6 +456,26 @@ pub enum Action {
     },
     /// Center the focused column on the screen.
     CenterColumn {},
+    /// Pin the focused column to a screen edge (a pin rail).
+    ///
+    /// A pinned column stays anchored to the edge while the scrollable row scrolls underneath it,
+    /// and reserves space so it never occludes scrollable columns. Up to two columns can be pinned
+    /// per edge.
+    PinColumn {
+        /// Which edge to pin to. Defaults to the left edge.
+        #[cfg_attr(feature = "clap", arg(long))]
+        edge: Option<PinEdge>,
+    },
+    /// Unpin the focused column, returning it to the scrollable row.
+    UnpinColumn {},
+    /// Pin the focused column if it is unpinned, or unpin it if it is pinned.
+    ToggleColumnPinned {
+        /// Which edge to pin to when pinning. Defaults to the left edge.
+        #[cfg_attr(feature = "clap", arg(long))]
+        edge: Option<PinEdge>,
+    },
+    /// Focus the first pinned column.
+    FocusPinned {},
     /// Center a window on the screen.
     #[cfg_attr(
         feature = "clap",
@@ -1007,6 +1027,18 @@ pub enum ColumnDisplay {
     Tabbed,
 }
 
+/// Which screen edge a pinned column is anchored to.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub enum PinEdge {
+    /// Anchored to the left edge (the left pin rail).
+    Left,
+    /// Anchored to the right edge (the right pin rail).
+    Right,
+}
+
 /// Output actions that niri can perform.
 // Variants in this enum should match the spelling of the ones in niri-config. Most thigs from
 // niri-config should be present here.
@@ -1390,6 +1422,13 @@ pub struct WindowLayout {
     /// the distance from the corner of the black backdrop to the corner of the (centered) window
     /// contents.
     pub window_offset_in_tile: (f64, f64),
+    /// Whether this window's column is pinned to a screen edge (a pin rail).
+    ///
+    /// A pinned column stays anchored to the edge while the scrollable row scrolls underneath it.
+    /// Only tiled (non-floating) columns can be pinned.
+    pub is_pinned: bool,
+    /// Which edge this window's column is pinned to, if pinned (`None` when not pinned).
+    pub pin_edge: Option<PinEdge>,
 }
 
 /// Output configuration change result.
@@ -1876,6 +1915,18 @@ impl FromStr for ColumnDisplay {
             "normal" => Ok(Self::Normal),
             "tabbed" => Ok(Self::Tabbed),
             _ => Err(r#"invalid column display, can be "normal" or "tabbed""#),
+        }
+    }
+}
+
+impl FromStr for PinEdge {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "left" => Ok(Self::Left),
+            "right" => Ok(Self::Right),
+            _ => Err(r#"invalid pin edge, can be "left" or "right""#),
         }
     }
 }

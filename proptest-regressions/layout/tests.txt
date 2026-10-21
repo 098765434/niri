@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 9c13125841fd299ee95e7136b8ba5d62e8331bb6a3af580df44513490fa4d4b1 # shrinks to ops = [AddOutput(5), AddWindow { params: TestWindowParams { id: 1, parent_id: None, is_floating: false, bbox: Rectangle<smithay::utils::geometry::Logical> { x: 0, y: 0, width: 1, height: 1 }, min_max_size: (Size<smithay::utils::geometry::Logical> { w: 0, h: 0 }, Size<smithay::utils::geometry::Logical> { w: 0, h: 0 }), rules: None } }, PinColumn(Left), MoveColumnToOutput { output_id: 5, target_ws_idx: None, activate: false }], layout_config = LayoutPart { focus_ring: None, border: None, shadow: None, tab_indicator: None, insert_hint: None, preset_column_widths: None, default_column_width: None, preset_window_heights: None, center_focused_column: None, always_center_single_column: None, empty_workspace_above_first: None, default_column_display: None, gaps: None, struts: None, background_color: None }

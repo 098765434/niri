@@ -41,7 +41,7 @@ use niri_config::utils::MergeWith as _;
 use niri_config::{
     Config, CornerRadius, LayoutPart, PresetSize, Workspace as WorkspaceConfig, WorkspaceReference,
 };
-use niri_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
+use niri_ipc::{ColumnDisplay, PinEdge, PositionChange, SizeChange, WindowLayout};
 use scrolling::{Column, ColumnWidth};
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::utils::RescaleRenderElement;
@@ -2237,6 +2237,34 @@ impl<W: LayoutElement> Layout<W> {
             return;
         };
         workspace.set_column_display(display);
+    }
+
+    pub fn pin_column(&mut self, edge: PinEdge) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.pin_column(edge);
+    }
+
+    pub fn unpin_column(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.unpin_column();
+    }
+
+    pub fn toggle_column_pinned(&mut self, edge: PinEdge) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.toggle_column_pinned(edge);
+    }
+
+    pub fn focus_pinned(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.focus_pinned();
     }
 
     pub fn center_column(&mut self) {
