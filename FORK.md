@@ -10,11 +10,11 @@ upstream. The feature is intended to be proposed upstream — the fork stays a t
 |---|---|
 | Upstream | `https://github.com/YaLTeR/niri` (remote: `upstream`) |
 | Base release | **`v26.04`** (matches the niri 26.04 that nixpkgs 26.05 ships) |
-| Fork branch | `gesture-ipc-events` |
+| Fork branch | `ocbk` |
 | Custom commits | 2, on top of `v26.04` (see below) |
 
 ```
-git log --oneline v26.04..gesture-ipc-events
+git log --oneline v26.04..ocbk
   Add live gesture-progress IPC events     # the feature
   Fix duplicate active_column_idx          # build fix (tests config)
 ```
@@ -36,7 +36,7 @@ Touched files: `niri-ipc/src/lib.rs`, `niri-ipc/src/state.rs`, `src/ipc/server.r
 
 Built as the compositor via a flake input (`programs.niri.package`) — e.g. in a NixOS config:
 ```nix
-niri-fork = { url = "github:098765434/niri/gesture-ipc-events"; inputs.nixpkgs.follows = "nixpkgs"; };
+niri-fork = { url = "github:098765434/niri/ocbk"; inputs.nixpkgs.follows = "nixpkgs"; };
 ```
 Commit on this branch, then `nix flake update niri-fork` and rebuild.
 
@@ -46,9 +46,9 @@ The fork keeps its commits on top of a release tag, so updating is a rebase onto
 
 ```sh
 git fetch --tags upstream
-git rebase --onto <new-tag> v26.04 gesture-ipc-events
+git rebase --onto <new-tag> v26.04 ocbk
 # On conflicts, find commits upstream already has and skip them:
-git range-diff v26.04 <new-tag> gesture-ipc-events
+git range-diff v26.04 <new-tag> ocbk
 git rebase --skip                            # for each commit range-diff shows as upstreamed
 # then build + test in the dev shell:
 nix develop -c cargo build && nix develop -c cargo test
