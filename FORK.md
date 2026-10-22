@@ -43,8 +43,8 @@ While Mod is held, three-finger touchpad swipes act on the focused window (branc
 | Down | maximize to edges | rubber-banded nudge, commits live once the swipe passes the threshold |
 | Left / Right | column one preset narrower / wider | one step per stretch of travel, no wrap-around, small bump at the ends |
 
-Releasing Mod mid-swipe cancels. Disable with `gestures { mod-swipe { off; } }`. Thresholds are
-constants at the top of `src/layout/window_swipe.rs`. Touched files: `niri-config/src/gestures.rs`,
+Releasing Mod mid-swipe cancels. Disable with `gestures { mod-swipe { off; } }`. Design, tuning
+constants and limitations: [`niri-mod-swipe-spec.md`](./niri-mod-swipe-spec.md). Touched files: `niri-config/src/gestures.rs`,
 `src/input/mod.rs`, `src/layout/{window_swipe,mod,tile,closing_window,scrolling,floating,workspace,tests}.rs`,
 `docs/wiki/{Gestures,Configuration:-Gestures}.md`.
 
