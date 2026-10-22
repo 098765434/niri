@@ -1,8 +1,8 @@
 # Fork notes — niri
 
 A fork of [niri](https://github.com/YaLTeR/niri), the scrollable-tiling Wayland compositor. It adds
-**live gesture-progress IPC events** on top of a tagged upstream release; everything else is stock
-upstream.
+**live gesture-progress IPC events** and **Mod-held three-finger window swipes** on top of a tagged
+upstream release; everything else is stock upstream.
 
 ## Provenance
 
@@ -31,6 +31,22 @@ Three continuous, per-frame values streamed over the niri IPC event stream so an
 Design and implementation notes: [`niri-gesture-ipc-spec.md`](./niri-gesture-ipc-spec.md).
 Touched files: `niri-ipc/src/lib.rs`, `niri-ipc/src/state.rs`, `src/ipc/server.rs`,
 `src/ipc/client.rs`, `src/layout/{mod,scrolling,workspace}.rs`.
+
+### Mod-held three-finger window swipes
+
+While Mod is held, three-finger touchpad swipes act on the focused window (branch
+`mod-swipe-gestures`):
+
+| Direction | Action | Feel |
+|---|---|---|
+| Up | close window | window follows the fingers and fades; release past a distance/velocity threshold closes, otherwise springs back (also springs back if the client doesn't close within 1 s) |
+| Down | maximize to edges | rubber-banded nudge, commits live once the swipe passes the threshold |
+| Left / Right | column one preset narrower / wider | one step per stretch of travel, no wrap-around, small bump at the ends |
+
+Releasing Mod mid-swipe cancels. Disable with `gestures { mod-swipe { off; } }`. Thresholds are
+constants at the top of `src/layout/window_swipe.rs`. Touched files: `niri-config/src/gestures.rs`,
+`src/input/mod.rs`, `src/layout/{window_swipe,mod,tile,closing_window,scrolling,floating,workspace,tests}.rs`,
+`docs/wiki/{Gestures,Configuration:-Gestures}.md`.
 
 ## Consumed by
 
