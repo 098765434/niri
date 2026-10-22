@@ -1461,6 +1461,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         };
 
         let tile_size = tile.tile_size();
+        let fly_y = tile.swipe_close_fly_y(tile_pos.y);
 
         let (col_idx, tile_idx) = self
             .columns
@@ -1503,7 +1504,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             tile_pos.x -= offset;
         }
 
+        let count = self.closing_windows.len();
         self.start_close_animation_for_tile(renderer, snapshot, tile_size, tile_pos, blocker);
+        if self.closing_windows.len() > count {
+            self.closing_windows.last_mut().unwrap().set_fly_y(fly_y);
+        }
     }
 
     fn start_close_animation_for_tile(
@@ -2591,6 +2596,21 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         col.toggle_width(None, forwards);
 
         cancel_resize_for_column(&mut self.interactive_resize, col);
+    }
+
+    /// Steps the window's column one preset width narrower or wider, without wrapping around.
+    ///
+    /// Returns `false` if the column is already at the end of the preset range.
+    pub fn step_window_width(&mut self, window: &W::Id, forwards: bool) -> bool {
+        let Some(col) = self.columns.iter_mut().find(|col| col.contains(window)) else {
+            return false;
+        };
+
+        let stepped = col.step_width(forwards);
+
+        cancel_resize_for_column(&mut self.interactive_resize, col);
+
+        stepped
     }
 
     pub fn toggle_full_width(&mut self) {
@@ -4841,6 +4861,73 @@ impl<W: LayoutElement> Column<W> {
         self.set_column_width(SizeChange::from(preset), Some(tile_idx), true);
 
         self.preset_width_idx = Some(preset_idx);
+    }
+
+    fn step_width(&mut self, forwards: bool) -> bool {
+        let len = self.options.layout.preset_column_widths.len();
+        if len == 0 {
+            return false;
+        }
+
+        let preset_idx = if self.is_full_width || self.is_pending_maximized {
+            // Full width counts as wider than every preset.
+            if forwards {
+                return false;
+            }
+            len - 1
+        } else if let Some(idx) = self.preset_width_idx {
+            if forwards {
+                if idx + 1 >= len {
+                    return false;
+                }
+                idx + 1
+            } else {
+                let Some(idx) = idx.checked_sub(1) else {
+                    return false;
+                };
+                idx
+            }
+        } else {
+            let tile = &self.tiles[self.active_tile_idx];
+            let current_window = tile.window_expected_or_current_size().w;
+            let current_tile = tile.tile_expected_or_current_size().w;
+
+            let mut it = self
+                .options
+                .layout
+                .preset_column_widths
+                .iter()
+                .map(|preset| self.resolve_preset_width(*preset));
+
+            let idx = if forwards {
+                it.position(|resolved| {
+                    match resolved {
+                        // Some allowance for fractional scaling purposes.
+                        ResolvedSize::Tile(resolved) => current_tile + 1. < resolved,
+                        ResolvedSize::Window(resolved) => current_window + 1. < resolved,
+                    }
+                })
+            } else {
+                it.rposition(|resolved| {
+                    match resolved {
+                        // Some allowance for fractional scaling purposes.
+                        ResolvedSize::Tile(resolved) => resolved + 1. < current_tile,
+                        ResolvedSize::Window(resolved) => resolved + 1. < current_window,
+                    }
+                })
+            };
+            let Some(idx) = idx else {
+                return false;
+            };
+            idx
+        };
+
+        let preset = self.options.layout.preset_column_widths[preset_idx];
+        self.set_column_width(SizeChange::from(preset), None, true);
+
+        self.preset_width_idx = Some(preset_idx);
+
+        true
     }
 
     fn toggle_full_width(&mut self) {

@@ -557,8 +557,13 @@ impl<W: LayoutElement> FloatingSpace<W> {
         };
 
         let tile_size = tile.tile_size();
+        let fly_y = tile.swipe_close_fly_y(tile_pos.y);
 
+        let count = self.closing_windows.len();
         self.start_close_animation_for_tile(renderer, snapshot, tile_size, tile_pos, blocker);
+        if self.closing_windows.len() > count {
+            self.closing_windows.last_mut().unwrap().set_fly_y(fly_y);
+        }
     }
 
     pub fn activate_window_without_raising(&mut self, id: &W::Id) -> bool {

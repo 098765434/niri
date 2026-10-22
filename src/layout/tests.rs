@@ -693,6 +693,24 @@ enum Op {
         timestamp: Duration,
     },
     OverviewGestureEnd,
+    WindowSwipeBegin,
+    WindowSwipeUpdate {
+        #[proptest(strategy = "-400f64..400f64")]
+        delta_x: f64,
+        #[proptest(strategy = "-400f64..400f64")]
+        delta_y: f64,
+        timestamp: Duration,
+    },
+    WindowSwipeEnd {
+        cancelled: bool,
+    },
+    WindowSwipeCancel,
+    WindowSwipeCloseTimedOut(#[proptest(strategy = "1..=5usize")] usize),
+    StepWindowWidth {
+        #[proptest(strategy = "1..=5usize")]
+        id: usize,
+        forwards: bool,
+    },
     InteractiveMoveBegin {
         #[proptest(strategy = "1..=5usize")]
         window: usize,
@@ -1560,6 +1578,28 @@ impl Op {
             }
             Op::OverviewGestureEnd => {
                 layout.overview_gesture_end();
+            }
+            Op::WindowSwipeBegin => {
+                layout.window_swipe_begin();
+            }
+            Op::WindowSwipeUpdate {
+                delta_x,
+                delta_y,
+                timestamp,
+            } => {
+                layout.window_swipe_update(delta_x, delta_y, timestamp);
+            }
+            Op::WindowSwipeEnd { cancelled } => {
+                layout.window_swipe_end(cancelled);
+            }
+            Op::WindowSwipeCancel => {
+                layout.window_swipe_cancel();
+            }
+            Op::WindowSwipeCloseTimedOut(id) => {
+                layout.window_swipe_close_timed_out(&id);
+            }
+            Op::StepWindowWidth { id, forwards } => {
+                layout.step_window_width(&id, forwards);
             }
             Op::InteractiveMoveBegin {
                 window,
@@ -3928,4 +3968,195 @@ proptest! {
 
         check_ops_with_options(options, ops);
     }
+}
+
+fn step_width_options() -> Options {
+    Options {
+        layout: niri_config::Layout {
+            preset_column_widths: vec![
+                PresetSize::Fixed(500),
+                PresetSize::Fixed(700),
+                PresetSize::Fixed(900),
+            ],
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+#[test]
+fn step_window_width_clamps_at_ends() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::SetWindowWidth {
+            id: None,
+            change: SizeChange::SetFixed(600),
+        },
+        Op::Communicate(1),
+    ];
+    let mut layout = check_ops_with_options(step_width_options(), ops);
+    let width = |layout: &Layout<TestWindow>| {
+        layout
+            .windows()
+            .next()
+            .unwrap()
+            .1
+            .requested_size()
+            .unwrap()
+            .w
+    };
+
+    // From a custom width, steps go to the nearest preset in each direction.
+    assert!(layout.step_window_width(&1, true));
+    assert_eq!(width(&layout), 700);
+    assert!(layout.step_window_width(&1, true));
+    assert_eq!(width(&layout), 900);
+
+    // No wrap-around at the wide end.
+    assert!(!layout.step_window_width(&1, true));
+    assert_eq!(width(&layout), 900);
+
+    assert!(layout.step_window_width(&1, false));
+    assert!(layout.step_window_width(&1, false));
+    assert_eq!(width(&layout), 500);
+
+    // No wrap-around at the narrow end.
+    assert!(!layout.step_window_width(&1, false));
+    assert_eq!(width(&layout), 500);
+    layout.verify_invariants();
+}
+
+#[test]
+fn step_window_width_from_full_width() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::MaximizeColumn,
+        Op::Communicate(1),
+    ];
+    let mut layout = check_ops_with_options(step_width_options(), ops);
+
+    assert!(!layout.step_window_width(&1, true));
+    assert!(layout.step_window_width(&1, false));
+    let win = layout.windows().next().unwrap().1;
+    assert_eq!(win.requested_size().unwrap().w, 900);
+    layout.verify_invariants();
+}
+
+#[test]
+fn window_swipe_up_closes_and_short_swipe_springs_back() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::Communicate(1),
+    ];
+    let mut layout = check_ops(ops);
+
+    // A short swipe that stops before release springs back.
+    assert!(layout.window_swipe_begin());
+    for i in 1..=4 {
+        assert!(layout.window_swipe_update(0., -10., Duration::from_millis(i * 100)));
+    }
+    assert!(layout.window_swipe_update(0., 0., Duration::from_millis(1000)));
+    assert_eq!(layout.window_swipe_end(false), None);
+    layout.verify_invariants();
+
+    // A long swipe closes.
+    assert!(layout.window_swipe_begin());
+    for i in 1..=10 {
+        layout.window_swipe_update(0., -20., Duration::from_millis(2000 + i * 10));
+    }
+    assert_eq!(layout.window_swipe_end(false), Some(1));
+    layout.verify_invariants();
+
+    // If the window doesn't close, it gets put back.
+    assert!(layout.window_swipe_close_timed_out(&1));
+    assert!(!layout.window_swipe_close_timed_out(&1));
+    layout.verify_invariants();
+}
+
+#[test]
+fn window_swipe_down_maximizes() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::Communicate(1),
+        Op::WindowSwipeBegin,
+        Op::WindowSwipeUpdate {
+            delta_x: 0.,
+            delta_y: 40.,
+            timestamp: Duration::from_millis(10),
+        },
+        Op::WindowSwipeUpdate {
+            delta_x: 0.,
+            delta_y: 40.,
+            timestamp: Duration::from_millis(20),
+        },
+        Op::WindowSwipeEnd { cancelled: false },
+        Op::Communicate(1),
+    ];
+    let layout = check_ops(ops);
+    let win = layout.windows().next().unwrap().1;
+    assert!(win.pending_sizing_mode().is_maximized());
+}
+
+#[test]
+fn window_swipe_horizontal_steps_width() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::SetWindowWidth {
+            id: None,
+            change: SizeChange::SetFixed(500),
+        },
+        Op::Communicate(1),
+        Op::WindowSwipeBegin,
+        // Two width steps in one swipe.
+        Op::WindowSwipeUpdate {
+            delta_x: 130.,
+            delta_y: 0.,
+            timestamp: Duration::from_millis(10),
+        },
+        Op::WindowSwipeEnd { cancelled: false },
+        Op::Communicate(1),
+    ];
+    let layout = check_ops_with_options(step_width_options(), ops);
+    let win = layout.windows().next().unwrap().1;
+    assert_eq!(win.requested_size().unwrap().w, 900);
+}
+
+#[test]
+fn window_swipe_cancelled_by_window_removal() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::WindowSwipeBegin,
+        Op::WindowSwipeUpdate {
+            delta_x: 0.,
+            delta_y: -100.,
+            timestamp: Duration::from_millis(10),
+        },
+        Op::CloseWindow(1),
+        Op::WindowSwipeUpdate {
+            delta_x: 0.,
+            delta_y: -100.,
+            timestamp: Duration::from_millis(20),
+        },
+        Op::WindowSwipeEnd { cancelled: false },
+    ];
+    let layout = check_ops(ops);
+    assert!(!layout.window_swipe_is_active());
 }

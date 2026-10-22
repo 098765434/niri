@@ -1182,6 +1182,14 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
+    pub fn step_window_width(&mut self, window: &W::Id, forwards: bool) -> bool {
+        if self.floating.has_window(window) {
+            // Floating windows have no column to step through presets.
+            return false;
+        }
+        self.scrolling.step_window_width(window, forwards)
+    }
+
     pub fn toggle_full_width(&mut self) {
         if self.floating_is_active.get() {
             // Leave this unimplemented for now. For good UX, this probably needs moving the tile

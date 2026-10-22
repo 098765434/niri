@@ -869,6 +869,9 @@ mod tests {
                     trigger-width 10
                     max-speed 50
                 }
+                mod-swipe {
+                    off
+                }
             }
 
             environment {
@@ -1660,6 +1663,9 @@ mod tests {
                     top_right: false,
                     bottom_left: false,
                     bottom_right: false,
+                },
+                mod_swipe: ModSwipe {
+                    off: true,
                 },
             },
             overview: Overview {

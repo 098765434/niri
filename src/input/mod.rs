@@ -19,6 +19,7 @@ use smithay::backend::input::{
     TabletToolTipState, TouchEvent,
 };
 use smithay::backend::libinput::LibinputInputBackend;
+use smithay::desktop::Window;
 use smithay::input::dnd::DnDGrab;
 use smithay::input::keyboard::{keysyms, FilterResult, Keysym, Layout, ModifiersState};
 use smithay::input::pointer::{
@@ -70,6 +71,9 @@ pub mod touch_resize_grab;
 use backend_ext::{NiriInputBackend as InputBackend, NiriInputDevice as _};
 
 pub const DOUBLE_CLICK_TIME: Duration = Duration::from_millis(400);
+
+/// How long a window swiped away gets to close before it's put back.
+const SWIPED_WINDOW_CLOSE_TIMEOUT: Duration = Duration::from_millis(1000);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TabletData {
@@ -429,6 +433,15 @@ impl State {
                 let modified = keysym.modified_sym();
                 let raw = keysym.raw_latin_sym_or_raw_current_sym();
                 let modifiers = modifiers_from_state(*mods);
+
+                // Releasing Mod disarms the window swipe gestures.
+                if this.niri.layout.window_swipe_is_active()
+                    && !modifiers.contains(mod_key.to_modifiers())
+                {
+                    this.niri.layout.window_swipe_cancel();
+                    // FIXME: granular.
+                    this.niri.queue_redraw_all();
+                }
 
                 // After updating XKB state from accessibility-grabbed keys, return right away and
                 // don't handle them.
@@ -3744,6 +3757,11 @@ impl State {
             return;
         }
 
+        if event.fingers() == 3 && self.mod_swipe_armed() && self.niri.layout.window_swipe_begin() {
+            // We handled this event.
+            return;
+        }
+
         if event.fingers() == 3 {
             self.niri.gesture_swipe_3f_cumulative = Some((0., 0.));
 
@@ -3792,6 +3810,18 @@ impl State {
 
         let uninverted_delta_y = delta_y;
 
+        // Window swipes follow the fingers regardless of natural scrolling.
+        let timestamp = Duration::from_micros(event.time());
+        if self
+            .niri
+            .layout
+            .window_swipe_update(delta_x, delta_y, timestamp)
+        {
+            // FIXME: granular.
+            self.niri.queue_redraw_all();
+            return;
+        }
+
         let device = event.device();
         if let Some(device) = (&device as &dyn Any).downcast_ref::<input::Device>() {
             if device.config_scroll_natural_scroll_enabled() {
@@ -3838,8 +3868,6 @@ impl State {
                 }
             }
         }
-
-        let timestamp = Duration::from_micros(event.time());
 
         let mut handled = false;
         let res = self
@@ -3898,6 +3926,17 @@ impl State {
     fn on_gesture_swipe_end<I: InputBackend>(&mut self, event: I::GestureSwipeEndEvent) {
         self.niri.gesture_swipe_3f_cumulative = None;
 
+        if self.niri.layout.window_swipe_is_active() {
+            if let Some(window) = self.niri.layout.window_swipe_end(event.cancelled()) {
+                self.close_swiped_window(window);
+            }
+            // FIXME: granular.
+            self.niri.queue_redraw_all();
+
+            // We handled this event.
+            return;
+        }
+
         let mut handled = false;
         let res = self.niri.layout.workspace_switch_gesture_end(Some(true));
         if let Some(output) = res {
@@ -3937,6 +3976,40 @@ impl State {
                 cancelled: event.cancelled(),
             },
         );
+    }
+
+    /// Whether three-finger swipes should act on the focused window.
+    fn mod_swipe_armed(&self) -> bool {
+        let config = self.niri.config.borrow();
+        if config.gestures.mod_swipe.off {
+            return false;
+        }
+
+        let mod_key = self.backend.mod_key(&config);
+        let mods = self.niri.seat.get_keyboard().unwrap().modifier_state();
+        modifiers_from_state(mods).contains(mod_key.to_modifiers())
+    }
+
+    fn close_swiped_window(&mut self, window: Window) {
+        let Some((_, mapped)) = self.niri.layout.windows().find(|(_, m)| m.window == window) else {
+            return;
+        };
+        mapped.toplevel().send_close();
+
+        // If the window doesn't close soon (e.g. it asks to save changes), put it back.
+        self.niri
+            .event_loop
+            .insert_source(
+                Timer::from_duration(SWIPED_WINDOW_CLOSE_TIMEOUT),
+                move |_, _, state| {
+                    if state.niri.layout.window_swipe_close_timed_out(&window) {
+                        // FIXME: granular.
+                        state.niri.queue_redraw_all();
+                    }
+                    TimeoutAction::Drop
+                },
+            )
+            .unwrap();
     }
 
     fn on_gesture_pinch_begin<I: InputBackend>(&mut self, event: I::GesturePinchBeginEvent) {
