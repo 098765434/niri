@@ -2,7 +2,7 @@
 
 A fork of [niri](https://github.com/YaLTeR/niri), the scrollable-tiling Wayland compositor. It adds
 **live gesture-progress IPC events** on top of a tagged upstream release; everything else is stock
-upstream. The feature is intended to be proposed upstream — the fork stays a thin, rebasable series.
+upstream.
 
 ## Provenance
 
