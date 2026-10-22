@@ -47,6 +47,11 @@ pub struct ClosingWindow {
     /// Position in the workspace.
     pos: Point<f64, Logical>,
 
+    /// Vertical distance to travel over the course of the animation.
+    ///
+    /// Used to continue the flight of a window that was swiped away.
+    fly_y: f64,
+
     /// How much the texture should be offset.
     buffer_offset: Point<f64, Logical>,
 
@@ -149,12 +154,17 @@ impl ClosingWindow {
             block_out_from: snapshot.block_out_from,
             geo_size,
             pos,
+            fly_y: 0.,
             buffer_offset,
             buffer_with_blocked_out_bg_offset,
             blocked_out_buffer_offset,
             anim_state: AnimationState::new(blocker, anim),
             random_seed: fastrand::f32(),
         })
+    }
+
+    pub fn set_fly_y(&mut self, fly_y: f64) {
+        self.fly_y = fly_y;
     }
 
     pub fn advance_animations(&mut self) {
@@ -222,6 +232,7 @@ impl ClosingWindow {
 
         let progress = anim.value();
         let clamped_progress = anim.clamped_value().clamp(0., 1.);
+        let pos = self.pos + Point::from((0., self.fly_y * clamped_progress));
 
         if Shaders::get(ctx.renderer)
             .program(ProgramType::Close)
@@ -232,7 +243,7 @@ impl ClosingWindow {
 
             // Round to physical pixels relative to the view position. This is similar to what
             // happens when rendering normal windows.
-            let relative = self.pos - view_rect.loc;
+            let relative = pos - view_rect.loc;
             let pos = view_rect.loc + relative.to_physical_precise_round(scale).to_logical(scale);
 
             let geo_loc = Vec2::new(pos.x as f32, pos.y as f32);
@@ -289,7 +300,7 @@ impl ClosingWindow {
             ((1. - clamped_progress) / 5. + 0.8).max(0.),
         );
 
-        let mut location = self.pos + offset;
+        let mut location = pos + offset;
         location.x -= view_rect.loc.x;
         let elem = RelocateRenderElement::from_element(
             elem,

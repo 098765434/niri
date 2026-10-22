@@ -54,6 +54,7 @@ use workspace::{WorkspaceAddWindowTarget, WorkspaceId};
 
 pub use self::monitor::MonitorRenderElement;
 use self::monitor::{Monitor, WorkspaceSwitch};
+use self::window_swipe::WindowSwipe;
 use self::workspace::{OutputId, Workspace};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
@@ -85,6 +86,7 @@ pub mod scrolling;
 pub mod shadow;
 pub mod tab_indicator;
 pub mod tile;
+pub mod window_swipe;
 pub mod workspace;
 
 #[cfg(test)]
@@ -353,6 +355,8 @@ pub struct Layout<W: LayoutElement> {
     interactive_move: Option<InteractiveMoveState<W>>,
     /// Ongoing drag-and-drop operation.
     dnd: Option<DndData<W>>,
+    /// Ongoing Mod+three-finger window swipe.
+    window_swipe: Option<WindowSwipe<W>>,
     /// Clock for driving animations.
     clock: Clock,
     /// Time that we last updated render elements for.
@@ -698,6 +702,7 @@ impl<W: LayoutElement> Layout<W> {
             is_active: true,
             last_active_workspace_id: HashMap::new(),
             interactive_move: None,
+            window_swipe: None,
             dnd: None,
             clock,
             update_render_elements_time: Duration::ZERO,
@@ -723,6 +728,7 @@ impl<W: LayoutElement> Layout<W> {
             is_active: true,
             last_active_workspace_id: HashMap::new(),
             interactive_move: None,
+            window_swipe: None,
             dnd: None,
             clock,
             update_render_elements_time: Duration::ZERO,
@@ -1114,6 +1120,14 @@ impl<W: LayoutElement> Layout<W> {
         window: &W::Id,
         transaction: Transaction,
     ) -> Option<RemovedTile<W>> {
+        if self
+            .window_swipe
+            .as_ref()
+            .is_some_and(|s| s.window() == window)
+        {
+            self.window_swipe = None;
+        }
+
         if let Some(state) = &self.interactive_move {
             match state {
                 InteractiveMoveState::Starting { window_id, .. } => {

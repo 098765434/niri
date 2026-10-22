@@ -99,6 +99,20 @@ pub struct Tile<W: LayoutElement> {
     /// Offset during the initial interactive move rubberband.
     pub(super) interactive_move_offset: Point<f64, Logical>,
 
+    /// Offset while the tile follows a Mod+three-finger window swipe.
+    pub(super) swipe_offset: Point<f64, Logical>,
+
+    /// Opacity while the tile follows a Mod+three-finger window swipe.
+    pub(super) swipe_alpha: f64,
+
+    /// Offscreen buffer for rendering the tile with `swipe_alpha`.
+    swipe_offscreen: OffscreenBuffer,
+
+    /// Whether the tile was swiped away and is waiting for its window to close.
+    ///
+    /// The close animation will then continue the tile's flight upwards.
+    pub(super) swipe_closing: bool,
+
     /// Snapshot of the last render for use in the close animation.
     unmap_snapshot: Option<TileRenderSnapshot>,
 
@@ -206,6 +220,10 @@ impl<W: LayoutElement> Tile<W> {
             move_y_animation: None,
             alpha_animation: None,
             interactive_move_offset: Point::from((0., 0.)),
+            swipe_offset: Point::from((0., 0.)),
+            swipe_alpha: 1.,
+            swipe_offscreen: OffscreenBuffer::default(),
+            swipe_closing: false,
             unmap_snapshot: None,
             rounded_corner_damage: Default::default(),
             view_size,
@@ -554,8 +572,35 @@ impl<W: LayoutElement> Tile<W> {
         }
 
         offset += self.interactive_move_offset;
+        offset += self.swipe_offset;
 
         offset
+    }
+
+    /// Returns how far the close animation should carry a swiped-away tile at `tile_y`.
+    pub fn swipe_close_fly_y(&self, tile_y: f64) -> f64 {
+        if self.swipe_closing {
+            -(tile_y + self.tile_size().h)
+        } else {
+            0.
+        }
+    }
+
+    /// Returns the tile to its place after a window swipe, animating from where it was swiped.
+    pub fn swipe_spring_back(&mut self) {
+        let offset = std::mem::take(&mut self.swipe_offset);
+        self.swipe_closing = false;
+        if offset.x != 0. {
+            self.animate_move_x_from(offset.x);
+        }
+        if offset.y != 0. {
+            self.animate_move_y_from(offset.y);
+        }
+
+        if self.swipe_alpha < 1. {
+            let from = std::mem::replace(&mut self.swipe_alpha, 1.);
+            self.animate_alpha(from, 1., self.options.animations.window_movement.0);
+        }
     }
 
     pub fn start_open_animation(&mut self) {
@@ -1329,7 +1374,9 @@ impl<W: LayoutElement> Tile<W> {
         let tile_alpha = self
             .alpha_animation
             .as_ref()
-            .map_or(1., |alpha| alpha.anim.clamped_value()) as f32;
+            .map_or(1., |alpha| alpha.anim.clamped_value())
+            * self.swipe_alpha;
+        let tile_alpha = tile_alpha as f32;
 
         let mut pushed = false;
         self.window().set_offscreen_data(None);
@@ -1361,7 +1408,12 @@ impl<W: LayoutElement> Tile<W> {
                     warn!("error rendering window opening animation: {err:?}");
                 }
             }
-        } else if let Some(alpha) = &self.alpha_animation {
+        } else if self.alpha_animation.is_some() || self.swipe_alpha < 1. {
+            let offscreen = self
+                .alpha_animation
+                .as_ref()
+                .map_or(&self.swipe_offscreen, |alpha| &alpha.offscreen);
+
             let mut ctx = ctx.as_gles();
             let mut elements = Vec::new();
             self.render_inner(
@@ -1371,7 +1423,7 @@ impl<W: LayoutElement> Tile<W> {
                 focus_ring,
                 &mut |elem| elements.push(elem),
             );
-            match alpha.offscreen.render(ctx.renderer, scale, &elements) {
+            match offscreen.render(ctx.renderer, scale, &elements) {
                 Ok((elem, _sync, data)) => {
                     let offset = elem.offset();
                     let elem = elem.with_alpha(tile_alpha).with_offset(location + offset);
@@ -1538,7 +1590,6 @@ impl<W: LayoutElement> Tile<W> {
         &self.options
     }
 
-    #[cfg(test)]
     pub fn view_size(&self) -> Size<f64, Logical> {
         self.view_size
     }
