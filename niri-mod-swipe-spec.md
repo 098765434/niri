@@ -17,7 +17,7 @@ is continuous and follows the fingers; the horizontal axis is discrete and steps
 | Up | Close the window | Window follows the fingers and fades. On release, a distance/velocity threshold closes it or springs it back. |
 | Down | Maximize to edges | Rubber-banded nudge down, then commits **live** once past the threshold. Release before that springs back. |
 | Left | Column one preset narrower | One step per stretch of travel; stops at the narrowest preset with a bump. |
-| Right | Column one preset wider | Mirror of left; stops at the widest preset (or full width) with a bump. |
+| Right | Column one preset wider | Mirror of left; after the widest preset comes full width, then a bump. |
 
 Design choices made with the user:
 
@@ -103,7 +103,8 @@ where the fingers let go.
 
 - From a preset, it moves to the neighbouring preset, or returns `false` at either end.
 - From a custom width, it picks the nearest larger or smaller preset by size (the same
-  matching `toggle_width` uses), or returns `false` if there is none.
+  matching `toggle_width` uses), or returns `false` if there is none narrower.
+- Stepping wider past the widest preset switches the column to full width.
 - Full width and maximized count as wider than every preset: stepping wider returns
   `false`, stepping narrower goes to the widest preset.
 

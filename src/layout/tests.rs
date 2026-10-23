@@ -4015,10 +4015,13 @@ fn step_window_width_clamps_at_ends() {
     assert!(layout.step_window_width(&1, true));
     assert_eq!(width(&layout), 900);
 
-    // No wrap-around at the wide end.
+    // Past the widest preset comes full width, and no wrap-around after that.
+    assert!(layout.step_window_width(&1, true));
+    layout.verify_invariants();
     assert!(!layout.step_window_width(&1, true));
-    assert_eq!(width(&layout), 900);
 
+    assert!(layout.step_window_width(&1, false));
+    assert_eq!(width(&layout), 900);
     assert!(layout.step_window_width(&1, false));
     assert!(layout.step_window_width(&1, false));
     assert_eq!(width(&layout), 500);

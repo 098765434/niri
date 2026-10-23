@@ -4864,28 +4864,24 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn step_width(&mut self, forwards: bool) -> bool {
-        let len = self.options.layout.preset_column_widths.len();
-        if len == 0 {
-            return false;
-        }
-
-        let preset_idx = if self.is_full_width || self.is_pending_maximized {
+        if self.is_full_width || self.is_pending_maximized {
             // Full width counts as wider than every preset.
             if forwards {
                 return false;
             }
-            len - 1
-        } else if let Some(idx) = self.preset_width_idx {
+            let Some(preset_idx) = self.options.layout.preset_column_widths.len().checked_sub(1)
+            else {
+                return false;
+            };
+            self.set_preset_width(preset_idx);
+            return true;
+        }
+
+        let preset_idx = if let Some(idx) = self.preset_width_idx {
             if forwards {
-                if idx + 1 >= len {
-                    return false;
-                }
-                idx + 1
+                Some(idx + 1).filter(|idx| *idx < self.options.layout.preset_column_widths.len())
             } else {
-                let Some(idx) = idx.checked_sub(1) else {
-                    return false;
-                };
-                idx
+                idx.checked_sub(1)
             }
         } else {
             let tile = &self.tiles[self.active_tile_idx];
@@ -4899,7 +4895,7 @@ impl<W: LayoutElement> Column<W> {
                 .iter()
                 .map(|preset| self.resolve_preset_width(*preset));
 
-            let idx = if forwards {
+            if forwards {
                 it.position(|resolved| {
                     match resolved {
                         // Some allowance for fractional scaling purposes.
@@ -4915,19 +4911,27 @@ impl<W: LayoutElement> Column<W> {
                         ResolvedSize::Window(resolved) => resolved + 1. < current_window,
                     }
                 })
-            };
-            let Some(idx) = idx else {
-                return false;
-            };
-            idx
+            }
         };
 
+        match preset_idx {
+            Some(preset_idx) => self.set_preset_width(preset_idx),
+            // Past the widest preset, the next step is full width.
+            None if forwards => {
+                self.is_full_width = true;
+                self.update_tile_sizes(true);
+            }
+            None => return false,
+        }
+
+        true
+    }
+
+    fn set_preset_width(&mut self, preset_idx: usize) {
         let preset = self.options.layout.preset_column_widths[preset_idx];
         self.set_column_width(SizeChange::from(preset), None, true);
 
         self.preset_width_idx = Some(preset_idx);
-
-        true
     }
 
     fn toggle_full_width(&mut self) {
