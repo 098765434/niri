@@ -1438,6 +1438,13 @@ impl State {
 
         self.niri.config_error_notification.hide();
 
+        if self.niri.config.borrow().materials != config.materials {
+            crate::render_helpers::background_effect::set_materials(&config.materials);
+            let names = config.materials.0.iter().map(|m| m.name.clone()).collect();
+            self.niri.blur_shapes_state.set_materials(names);
+            self.niri.queue_redraw_all();
+        }
+
         // Find & orphan removed named workspaces.
         let mut removed_workspaces: Vec<String> = vec![];
         for ws in &self.niri.config.borrow().workspaces {
@@ -2367,7 +2374,12 @@ impl Niri {
 
         let mutter_x11_interop_state =
             MutterX11InteropManagerState::new::<State, _>(&display_handle, move |_| true);
-        let blur_shapes_state = BlurShapesManagerState::new::<State>(&display_handle);
+        let mut blur_shapes_state = BlurShapesManagerState::new::<State>(&display_handle);
+        {
+            let materials = &config.borrow().materials;
+            crate::render_helpers::background_effect::set_materials(materials);
+            blur_shapes_state.set_materials(materials.0.iter().map(|m| m.name.clone()).collect());
+        }
 
         #[cfg(test)]
         let single_pixel_buffer_state = SinglePixelBufferState::new::<State>(&display_handle);
