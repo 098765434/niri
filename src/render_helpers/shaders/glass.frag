@@ -84,8 +84,9 @@ void main() {
             - edge_distance(p - vec2(0.0, 1.0), half_size, corner_radius));
     vec2 normal = length(grad) > 0.0001 ? normalize(grad) : vec2(0.0);
 
-    // At the lip the glass shows what's just past its edge, as a lens does.
-    vec2 offset = normal * lip * glass_shape.x;
+    // At the lip the glass magnifies what's behind it, drawing it in from further
+    // inside, as a thick lens does; it never shows what lies past its own edge.
+    vec2 offset = -normal * lip * glass_shape.x;
     vec4 color;
     if (glass_shape.z > 0.001 && lip > 0.001) {
         float parting = glass_shape.z * 0.3;
