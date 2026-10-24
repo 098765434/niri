@@ -42,6 +42,10 @@ Blur enabled via the window rule will follow the window corner radius set via [`
 On the other hand, blur enabled through `ext-background-effect` will exactly follow the shape requested by the window.
 If the window or layer has clientside rounded corners or other complex shape, it should set a corresponding blur shape through `ext-background-effect`, then it will get correctly shaped background blur without any manual niri configuration.
 
+This fork also offers `niri-blur-shapes-v1`: instead of a region of rectangles, a surface sends rounded rectangles, each with its own corner radii and opacity.
+niri draws each with antialiased corners at its opacity, so a client with many rounded pieces of glass (such as a control center) gets blur exactly in their shape that fades with them.
+A surface with blur shapes is treated like one with a blur region: blur is on unless a rule says `blur false`.
+
 Windows can also blur their pop-up menus using `ext-background-effect`.
 On the niri side, you can do it with a `popups` block inside [`window-rule`](./Configuration:-Window-Rules.md#popups) and [`layer-rule`](./Configuration:-Layer-Rules.md#popups).
 See those wiki pages for examples and limitations.

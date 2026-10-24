@@ -76,6 +76,7 @@ pub struct XrayElement {
     clip_geo_size: Vec2,
     corner_radius: CornerRadius,
     scale: f32,
+    alpha: f32,
     blur: bool,
     noise: f32,
     saturation: f32,
@@ -93,12 +94,11 @@ impl Xray {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// Pushes the xray elements for each of `areas`, with its position against the backdrop.
     pub fn render(
         &self,
         ctx: RenderCtx<GlesRenderer>,
-        params: RenderParams,
-        xray_pos: XrayPos,
+        areas: Vec<(RenderParams, XrayPos)>,
         blur: bool,
         noise: f32,
         saturation: f32,
@@ -106,116 +106,131 @@ impl Xray {
     ) {
         let program = Shaders::get(ctx.renderer).postprocess_and_clip.clone();
 
-        let zoom = xray_pos.zoom;
-        let pos_in_backdrop = xray_pos.pos_in_backdrop.upscale(zoom);
-
-        let (clip_geo, corner_radius) = params
-            .clip
-            .unwrap_or((params.geometry, CornerRadius::default()));
-
-        let clip_offset = clip_geo.loc - params.geometry.loc;
-        let clip_pos_in_backdrop = pos_in_backdrop + clip_offset.upscale(zoom);
-
-        let geo_in_backdrop = Rectangle::new(pos_in_backdrop, params.geometry.size.upscale(zoom));
-
-        let mut backdrop = self.backdrop[ctx.target as usize].borrow_mut();
-        let backdrop_geo = Rectangle::from_size(backdrop.logical_size());
-        let intersection_with_backdrop = backdrop_geo.intersection(geo_in_backdrop);
-
-        let mut skip_backdrop = intersection_with_backdrop.is_none();
-
         let mut background = self.background[ctx.target as usize].borrow_mut();
         let prev = background.commit();
-        if background.prepare(ctx.renderer, blur) {
-            if background.commit() != prev {
-                trace!("background damaged");
-            }
+        let background_ready = background.prepare(ctx.renderer, blur);
+        if background_ready && background.commit() != prev {
+            trace!("background damaged");
+        }
 
-            let clip_geo_size = Vec2::new(clip_geo.size.w as f32, clip_geo.size.h as f32);
-            let buf_size = background.logical_size();
+        let mut backdrop = self.backdrop[ctx.target as usize].borrow_mut();
+        // prepared the first time an area needs it
+        let mut backdrop_ready = None;
 
-            for (ws_geo, bg_color) in &self.workspaces {
-                // If the background color is opaque, check if the workspace fully covers the
-                // element. In this case, we will skip the backdrop element since it's fully
-                // covered.
-                //
-                // FIXME: also implement some way to check if the background elements are fully
-                // covered in opaque regions, and not just the niri background color is opaque
-                let crop = if bg_color.is_opaque() && ws_geo.contains_rect(geo_in_backdrop) {
-                    skip_backdrop = true;
-                    // No need to intersect, we know it's fully covered.
-                    Some(geo_in_backdrop)
-                } else {
-                    ws_geo.intersection(geo_in_backdrop)
-                };
+        for (params, xray_pos) in areas {
+            let zoom = xray_pos.zoom;
+            let pos_in_backdrop = xray_pos.pos_in_backdrop.upscale(zoom);
 
-                let Some(crop) = crop else {
-                    continue;
-                };
+            let (clip_geo, corner_radius) = params
+                .clip
+                .unwrap_or((params.geometry, CornerRadius::default()));
 
-                // If crop contains the intersection with backdrop, then the workspace fully
-                // covers the backdrop, so we can skip the backdrop.
-                //
-                // This can happen when the overview is closed (so workspaces align left/right with
-                // the backdrop) and the window is peeking out off screen to the side. In this
-                // case, this off-screen part is on top of nothing, neither workspace nor backdrop,
-                // but since the window doesn't fully cover the workspace, the check above doesn't
-                // skip the backdrop.
-                if bg_color.is_opaque()
-                    && intersection_with_backdrop
-                        .is_some_and(|backdrop| crop.contains_rect(backdrop))
-                {
-                    skip_backdrop = true;
+            let clip_offset = clip_geo.loc - params.geometry.loc;
+            let clip_pos_in_backdrop = pos_in_backdrop + clip_offset.upscale(zoom);
+
+            let geo_in_backdrop =
+                Rectangle::new(pos_in_backdrop, params.geometry.size.upscale(zoom));
+
+            let backdrop_geo = Rectangle::from_size(backdrop.logical_size());
+            let intersection_with_backdrop = backdrop_geo.intersection(geo_in_backdrop);
+
+            let mut skip_backdrop = intersection_with_backdrop.is_none();
+
+            if background_ready {
+                let clip_geo_size = Vec2::new(clip_geo.size.w as f32, clip_geo.size.h as f32);
+                let buf_size = background.logical_size();
+
+                for (ws_geo, bg_color) in &self.workspaces {
+                    // If the background color is opaque, check if the workspace fully covers the
+                    // element. In this case, we will skip the backdrop element since it's fully
+                    // covered.
+                    //
+                    // FIXME: also implement some way to check if the background elements are
+                    // fully covered in opaque regions, and not just the niri background color is
+                    // opaque
+                    let crop = if bg_color.is_opaque() && ws_geo.contains_rect(geo_in_backdrop) {
+                        skip_backdrop = true;
+                        // No need to intersect, we know it's fully covered.
+                        Some(geo_in_backdrop)
+                    } else {
+                        ws_geo.intersection(geo_in_backdrop)
+                    };
+
+                    let Some(crop) = crop else {
+                        continue;
+                    };
+
+                    // If crop contains the intersection with backdrop, then the workspace fully
+                    // covers the backdrop, so we can skip the backdrop.
+                    //
+                    // This can happen when the overview is closed (so workspaces align left/right
+                    // with the backdrop) and the window is peeking out off screen to the side. In
+                    // this case, this off-screen part is on top of nothing, neither workspace nor
+                    // backdrop, but since the window doesn't fully cover the workspace, the check
+                    // above doesn't skip the backdrop.
+                    if bg_color.is_opaque()
+                        && intersection_with_backdrop
+                            .is_some_and(|backdrop| crop.contains_rect(backdrop))
+                    {
+                        skip_backdrop = true;
+                    }
+
+                    // This can be different from zoom for surfaces that do not scale with
+                    // workspaces, e.g. layer-shell top and overlay layer.
+                    let ws_zoom = ws_geo.size / buf_size;
+
+                    let src = Rectangle::new(crop.loc - ws_geo.loc, crop.size).downscale(ws_zoom);
+                    let src = src.to_buffer(background.scale(), Transform::Normal, &buf_size);
+
+                    let buf_size = Vec2::new(buf_size.w as f32, buf_size.h as f32);
+                    let pos_against_buf = (clip_pos_in_backdrop - ws_geo.loc).downscale(ws_zoom);
+                    let pos_against_buf =
+                        Vec2::new(pos_against_buf.x as f32, pos_against_buf.y as f32);
+                    let ws_zoom_vec = Vec2::new(ws_zoom.x as f32, ws_zoom.y as f32);
+                    let input_to_clip_geo = Mat3::from_scale(ws_zoom_vec / zoom as f32)
+                        * Mat3::from_scale(buf_size / clip_geo_size)
+                        * Mat3::from_translation(-pos_against_buf / buf_size);
+
+                    let mut geometry =
+                        Rectangle::new(crop.loc - geo_in_backdrop.loc, crop.size).downscale(zoom);
+                    geometry.loc += params.geometry.loc;
+
+                    let elem = XrayElement {
+                        buffer: self.background[ctx.target as usize].clone(),
+                        id: background.id().clone(),
+                        geometry,
+                        src,
+                        subregion: params.subregion.clone(),
+                        input_to_clip_geo,
+                        clip_geo_size,
+                        corner_radius,
+                        scale: params.scale as f32,
+                        alpha: params.alpha,
+                        blur,
+                        noise,
+                        saturation,
+                        bg_color: *bg_color,
+                        program: program.clone(),
+                    };
+                    push(elem);
                 }
-
-                // This can be different from zoom for surfaces that do not scale with
-                // workspaces, e.g. layer-shell top and overlay layer.
-                let ws_zoom = ws_geo.size / buf_size;
-
-                let src = Rectangle::new(crop.loc - ws_geo.loc, crop.size).downscale(ws_zoom);
-                let src = src.to_buffer(background.scale(), Transform::Normal, &buf_size);
-
-                let buf_size = Vec2::new(buf_size.w as f32, buf_size.h as f32);
-                let pos_against_buf = (clip_pos_in_backdrop - ws_geo.loc).downscale(ws_zoom);
-                let pos_against_buf = Vec2::new(pos_against_buf.x as f32, pos_against_buf.y as f32);
-                let ws_zoom_vec = Vec2::new(ws_zoom.x as f32, ws_zoom.y as f32);
-                let input_to_clip_geo = Mat3::from_scale(ws_zoom_vec / zoom as f32)
-                    * Mat3::from_scale(buf_size / clip_geo_size)
-                    * Mat3::from_translation(-pos_against_buf / buf_size);
-
-                let mut geometry =
-                    Rectangle::new(crop.loc - geo_in_backdrop.loc, crop.size).downscale(zoom);
-                geometry.loc += params.geometry.loc;
-
-                let elem = XrayElement {
-                    buffer: self.background[ctx.target as usize].clone(),
-                    id: background.id().clone(),
-                    geometry,
-                    src,
-                    subregion: params.subregion.clone(),
-                    input_to_clip_geo,
-                    clip_geo_size,
-                    corner_radius,
-                    scale: params.scale as f32,
-                    blur,
-                    noise,
-                    saturation,
-                    bg_color: *bg_color,
-                    program: program.clone(),
-                };
-                push(elem);
             }
-        }
 
-        // If the backdrop is fully covered by opaque background, we can skip it.
-        if skip_backdrop {
-            return;
-        }
+            // If the backdrop is fully covered by opaque background, we can skip it.
+            if skip_backdrop {
+                continue;
+            }
 
-        let prev = backdrop.commit();
-        if backdrop.prepare(ctx.renderer, blur) {
-            if backdrop.commit() != prev {
-                trace!("backdrop damaged");
+            let ready = *backdrop_ready.get_or_insert_with(|| {
+                let prev = backdrop.commit();
+                let ready = backdrop.prepare(ctx.renderer, blur);
+                if ready && backdrop.commit() != prev {
+                    trace!("backdrop damaged");
+                }
+                ready
+            });
+            if !ready {
+                continue;
             }
 
             let buf_size = backdrop.logical_size();
@@ -247,6 +262,7 @@ impl Xray {
                 clip_geo_size,
                 corner_radius: corner_radius.scaled_by(zoom as f32),
                 scale: params.scale as f32,
+                alpha: params.alpha,
                 blur,
                 noise,
                 saturation,
@@ -287,6 +303,10 @@ impl Element for XrayElement {
 
     fn geometry(&self, scale: Scale<f64>) -> Rectangle<i32, Physical> {
         self.geometry.to_physical_precise_round(scale)
+    }
+
+    fn alpha(&self) -> f32 {
+        self.alpha
     }
 
     fn opaque_regions(&self, _scale: Scale<f64>) -> OpaqueRegions<i32, Physical> {
@@ -350,7 +370,7 @@ impl RenderElement<GlesRenderer> for XrayElement {
             // FIXME: opaque regions need to be filtered like damage.
             &[],
             Transform::Normal,
-            1.,
+            self.alpha,
             self.program.as_ref(),
             uniforms,
         )

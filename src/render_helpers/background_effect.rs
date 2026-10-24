@@ -6,11 +6,14 @@ use smithay::utils::{Logical, Point, Rectangle, Scale};
 use smithay::wayland::compositor::{with_states, SurfaceData};
 use wayland_server::protocol::wl_surface::WlSurface;
 
-use crate::handlers::background_effect::get_cached_blur_region;
+use crate::handlers::background_effect::{get_cached_blur_area, BlurArea};
 use crate::niri_render_elements;
+use crate::protocols::blur_shapes::BlurShape;
 use crate::render_helpers::blur::BlurOptions;
 use crate::render_helpers::damage::ExtraDamage;
-use crate::render_helpers::framebuffer_effect::{FramebufferEffect, FramebufferEffectElement};
+use crate::render_helpers::framebuffer_effect::{
+    FramebufferEffect, FramebufferEffectElement, FramebufferShapeElement,
+};
 use crate::render_helpers::xray::{XrayElement, XrayPos};
 use crate::render_helpers::RenderCtx;
 use crate::utils::region::TransformedRegion;
@@ -60,6 +63,11 @@ pub struct RenderParams {
     pub clip: Option<(Rectangle<f64, Logical>, CornerRadius)>,
     /// Scale to use for rounding to physical pixels.
     pub scale: f64,
+    /// Opacity of the whole effect.
+    pub alpha: f32,
+    /// Whether `clip` is a shape the surface drew itself, to follow exactly rather than with
+    /// the rule's corner radius.
+    pub exact_clip: bool,
 }
 
 impl RenderParams {
@@ -76,6 +84,7 @@ impl RenderParams {
 niri_render_elements! {
     BackgroundEffectElement => {
         FramebufferEffect = FramebufferEffectElement,
+        FramebufferShape = FramebufferShapeElement,
         Xray = XrayElement,
         ExtraDamage = ExtraDamage,
     }
@@ -148,24 +157,31 @@ impl BackgroundEffect {
         self.options.is_visible()
     }
 
+    /// Renders the effect for each of `areas`, with the position of each against the xray
+    /// backdrop. `bounds` covers them all, for damage.
     pub fn render(
         &self,
         ctx: RenderCtx<GlesRenderer>,
         ns: Option<usize>,
-        mut params: RenderParams,
-        xray_pos: XrayPos,
+        bounds: Rectangle<f64, Logical>,
+        mut areas: Vec<(RenderParams, XrayPos)>,
         push: &mut dyn FnMut(BackgroundEffectElement),
     ) {
         if !self.is_visible() {
             return;
         }
 
-        if let Some(clip) = &mut params.clip {
-            clip.1 = self.corner_radius;
+        for (params, _) in &mut areas {
+            if params.exact_clip {
+                continue;
+            }
+            if let Some(clip) = &mut params.clip {
+                clip.1 = self.corner_radius;
+            }
+            params.fit_clip_radius();
         }
-        params.fit_clip_radius();
 
-        let damage = self.damage.render(params.geometry);
+        let damage = self.damage.render(bounds);
 
         // Use noise/saturation from options, falling back to blur defaults if blurred, and
         // to no effect if not blurred.
@@ -186,21 +202,31 @@ impl BackgroundEffect {
             };
 
             push(damage.into());
-            xray.render(
-                ctx,
-                params,
-                xray_pos,
-                blur,
-                noise,
-                saturation,
-                &mut |elem| push(elem.into()),
-            );
+            xray.render(ctx, areas, blur, noise, saturation, &mut |elem| {
+                push(elem.into())
+            });
         } else {
-            // Render non-xray effect.
-            let elem = self
-                .nonxray
-                .render(ns, params, blur_options, noise, saturation);
-            push(elem.into());
+            // Render non-xray effect: shapes draw from one capture of the area behind them all.
+            let shapes = areas.first().is_some_and(|(params, _)| params.exact_clip);
+            if shapes {
+                let shapes = areas.into_iter().map(|(params, _)| params).collect();
+                self.nonxray.render_shapes(
+                    ns,
+                    bounds,
+                    shapes,
+                    blur_options,
+                    noise,
+                    saturation,
+                    &mut |elem| push(elem.into()),
+                );
+            } else {
+                for (params, _) in areas {
+                    let elem = self
+                        .nonxray
+                        .render(ns, params, blur_options, noise, saturation);
+                    push(elem.into());
+                }
+            }
         }
     }
 }
@@ -258,7 +284,63 @@ fn render_params_for_tile(
         subregion,
         clip,
         scale,
+        alpha: 1.,
+        exact_clip: false,
     })
+}
+
+/// The render parameters for each of a surface's blur shapes that shows, drawn at
+/// `surface_geo` (its position and size as drawn) and scaled by `surface_anim_scale`.
+fn render_params_for_shapes(
+    shapes: &[BlurShape],
+    scale: f64,
+    surface_geo: Rectangle<f64, Logical>,
+    surface_anim_scale: Scale<f64>,
+) -> Vec<RenderParams> {
+    // half a physical pixel inside the shape, so the effect stays under the antialiased edge
+    // the client draws over it
+    let inset = 0.5 / scale;
+    // the quad reaches a pixel past the clip, so rounding it to pixels never cuts the clip's
+    // antialiased corners
+    let margin = 1. / scale;
+
+    shapes
+        .iter()
+        .filter(|shape| shape.alpha > 0.)
+        .filter_map(|shape| {
+            let mut rect = shape.rect.upscale(surface_anim_scale);
+            rect.loc += surface_geo.loc;
+
+            let clip = Rectangle::new(
+                rect.loc + Point::new(inset, inset),
+                (rect.size.to_point() - Point::new(inset * 2., inset * 2.)).to_size(),
+            );
+            if clip.size.w <= 0. || clip.size.h <= 0. {
+                return None;
+            }
+
+            let anim_scale = surface_anim_scale.x.min(surface_anim_scale.y) as f32;
+            let radius = shape
+                .radius
+                .scaled_by(anim_scale)
+                .expanded_by(-inset as f32)
+                .fit_to(clip.size.w as f32, clip.size.h as f32);
+
+            let geometry = Rectangle::new(
+                clip.loc - Point::new(margin, margin),
+                (clip.size.to_point() + Point::new(margin * 2., margin * 2.)).to_size(),
+            );
+
+            Some(RenderParams {
+                geometry,
+                subregion: None,
+                clip: Some((clip, radius)),
+                scale,
+                alpha: shape.alpha,
+                exact_clip: true,
+            })
+        })
+        .collect()
 }
 
 /// Per-surface background effect stored in its data map.
@@ -301,8 +383,8 @@ pub fn render_for_tile(
         let background_effect = SurfaceBackgroundEffect::get(states);
         let mut background_effect = background_effect.0.lock().unwrap();
 
-        let blur_region = get_cached_blur_region(states);
-        let has_blur_region = blur_region.as_ref().is_some_and(|r| !r.is_empty());
+        let blur_area = get_cached_blur_area(states);
+        let has_blur_region = blur_area.as_ref().is_some_and(|r| !r.is_empty());
 
         background_effect.update_config(blur_config);
         background_effect.update_render_elements(radius, effect, has_blur_region);
@@ -313,6 +395,38 @@ pub fn render_for_tile(
 
         let mut surface_geo = surface_geo(states).unwrap_or_default().to_f64();
         surface_geo.loc += surface_off;
+
+        // Blocked-out surfaces get geometry-shaped blur, like with a region.
+        if let (Some(BlurArea::Shapes(shapes)), false) = (&blur_area, should_block_out) {
+            let mut shape_geo = surface_geo.upscale(surface_anim_scale);
+            shape_geo.loc += geometry.loc;
+
+            let areas: Vec<_> =
+                render_params_for_shapes(shapes, scale, shape_geo, surface_anim_scale)
+                    .into_iter()
+                    .map(|params| {
+                        let pos = xray_pos.offset(params.geometry.loc - geometry.loc);
+                        (params, pos)
+                    })
+                    .collect();
+            let Some(bounds) = areas
+                .iter()
+                .map(|(params, _)| params.geometry)
+                .reduce(|a, b| a.merge(b))
+            else {
+                return;
+            };
+
+            background_effect.render(ctx, ns, bounds, areas, push);
+            return;
+        }
+
+        let blur_region = match blur_area {
+            Some(BlurArea::Rects(rects)) => Some(rects),
+            // a blocked-out surface with shapes: any non-empty region gives geometry blur
+            Some(BlurArea::Shapes(_)) => Some(Arc::new(vec![Rectangle::default()])),
+            None => None,
+        };
 
         let Some(params) = render_params_for_tile(
             geometry,
@@ -326,7 +440,8 @@ pub fn render_for_tile(
             return;
         };
 
+        let bounds = params.geometry;
         let xray_pos = xray_pos.offset(params.geometry.loc - geometry.loc);
-        background_effect.render(ctx, ns, params, xray_pos, push);
+        background_effect.render(ctx, ns, bounds, vec![(params, xray_pos)], push);
     });
 }

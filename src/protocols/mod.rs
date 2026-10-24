@@ -1,3 +1,4 @@
+pub mod blur_shapes;
 pub mod ext_workspace;
 pub mod foreign_toplevel;
 pub mod gamma_control;

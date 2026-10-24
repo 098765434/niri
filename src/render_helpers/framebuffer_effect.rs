@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use glam::{Mat3, Vec2};
 use niri_config::CornerRadius;
@@ -24,6 +25,38 @@ use crate::utils::region::TransformedRegion;
 pub struct FramebufferEffect {
     id: Id,
     commit: CommitCounter,
+    /// Id of the elements drawing shapes from one capture.
+    sample_id: Id,
+    /// The last capture for shapes, shared with the elements drawing them.
+    shared: SharedCapture,
+}
+
+/// What a capture-only element captured, for the elements that draw from it.
+type SharedCapture = Rc<RefCell<Option<Captured>>>;
+
+#[derive(Debug)]
+struct Captured {
+    texture: GlesTexture,
+    /// Where the capture was taken, in output coordinates before the frame's transform.
+    dst: Rectangle<i32, Physical>,
+}
+
+/// Draws one shape from a capture of the area behind all of a surface's shapes.
+///
+/// It isn't a framebuffer effect itself: several of them share one capture, which smithay would
+/// otherwise redo for every one, every frame.
+#[derive(Debug)]
+pub struct FramebufferSampleElement {
+    id: Id,
+    commit: CommitCounter,
+    geometry: Rectangle<f64, Logical>,
+    clip_geo: Rectangle<f64, Logical>,
+    corner_radius: CornerRadius,
+    scale: f32,
+    alpha: f32,
+    noise: f32,
+    saturation: f32,
+    shared: SharedCapture,
 }
 
 #[derive(Debug)]
@@ -35,9 +68,12 @@ pub struct FramebufferEffectElement {
     corner_radius: CornerRadius,
     subregion: Option<TransformedRegion>,
     scale: f32,
+    alpha: f32,
     blur_options: Option<BlurOptions>,
     noise: f32,
     saturation: f32,
+    /// Set for a capture-only element: what it captures goes here, and it draws nothing.
+    share: Option<SharedCapture>,
 }
 
 #[derive(Debug)]
@@ -54,6 +90,8 @@ impl FramebufferEffect {
         Self {
             id: Id::new(),
             commit: CommitCounter::default(),
+            sample_id: Id::new(),
+            shared: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -86,11 +124,130 @@ impl FramebufferEffect {
             corner_radius,
             subregion: params.subregion,
             scale: params.scale as f32,
+            alpha: params.alpha,
             blur_options,
             noise,
             saturation,
+            share: None,
         }
     }
+
+    /// Elements drawing each of `shapes` from one capture of `bounds`, behind all of them.
+    ///
+    /// The capture-only element comes last: elements are drawn back to front, so it captures
+    /// before any shape draws.
+    pub fn render_shapes(
+        &self,
+        ns: Option<usize>,
+        bounds: Rectangle<f64, Logical>,
+        shapes: Vec<RenderParams>,
+        blur_options: Option<BlurOptions>,
+        noise: f32,
+        saturation: f32,
+        push: &mut dyn FnMut(FramebufferShapeElement),
+    ) {
+        let mut sample_id = self.sample_id.clone();
+        if let Some(ns) = ns {
+            sample_id = sample_id.namespaced(ns);
+        }
+
+        let scale = shapes.first().map_or(1., |params| params.scale);
+
+        for params in shapes {
+            let (clip_geo, corner_radius) = params
+                .clip
+                .unwrap_or((params.geometry, CornerRadius::default()));
+
+            push(FramebufferShapeElement::Sample(FramebufferSampleElement {
+                id: sample_id.clone(),
+                commit: self.commit,
+                geometry: params.geometry,
+                clip_geo,
+                corner_radius,
+                scale: params.scale as f32,
+                alpha: params.alpha,
+                noise,
+                saturation,
+                shared: self.shared.clone(),
+            }));
+        }
+
+        let capture = self.render(
+            ns,
+            RenderParams {
+                geometry: bounds,
+                subregion: None,
+                clip: None,
+                scale,
+                alpha: 1.,
+                exact_clip: true,
+            },
+            blur_options,
+            noise,
+            saturation,
+        );
+        push(FramebufferShapeElement::Capture(FramebufferEffectElement {
+            share: Some(self.shared.clone()),
+            ..capture
+        }));
+    }
+}
+
+crate::niri_render_elements! {
+    FramebufferShapeElement => {
+        Capture = FramebufferEffectElement,
+        Sample = FramebufferSampleElement,
+    }
+}
+
+/// Uniforms for the clipping shader, drawing `crop` of an element at `geometry`, clipped to
+/// `clip_geo`, from `texture_region` of its texture (origin and size, normalized; all of it when
+/// `None`).
+#[allow(clippy::too_many_arguments)]
+fn clip_uniforms(
+    geometry: Rectangle<f64, Logical>,
+    clip_geo: Rectangle<f64, Logical>,
+    corner_radius: CornerRadius,
+    scale: f32,
+    noise: f32,
+    saturation: f32,
+    crop: Rectangle<f64, Logical>,
+    transform: Transform,
+    texture_region: Option<(Vec2, Vec2)>,
+) -> [Uniform<'static>; 7] {
+    let offset = crop.loc - (clip_geo.loc - geometry.loc);
+    let offset = Vec2::new(offset.x as f32, offset.y as f32);
+    let crop_size = Vec2::new(crop.size.w as f32, crop.size.h as f32);
+    let clip_size = Vec2::new(clip_geo.size.w as f32, clip_geo.size.h as f32);
+
+    // Our v_coords are [0, 1] inside crop. We want them to be [0, 1] inside clip_geo.
+    let input_to_clip_geo =
+        Mat3::from_scale(crop_size / clip_size) * Mat3::from_translation(offset / crop_size);
+
+    // Revert the effect of the texture transform.
+    let transform_mat = Mat3::from_translation(Vec2::new(0.5, 0.5))
+        * Mat3::from_cols_array(transform.matrix().as_ref())
+        * Mat3::from_translation(Vec2::new(-0.5, -0.5));
+    let mut input_to_clip_geo = input_to_clip_geo * transform_mat;
+
+    // The shader's input is the texture coordinate; take it to [0, 1] inside the region first.
+    if let Some((origin, size)) = texture_region {
+        input_to_clip_geo = input_to_clip_geo
+            * Mat3::from_scale(Vec2::ONE / size)
+            * Mat3::from_translation(-origin);
+    }
+
+    let clip_geo_size = (clip_geo.size.w as f32, clip_geo.size.h as f32);
+
+    [
+        Uniform::new("niri_scale", scale),
+        Uniform::new("geo_size", clip_geo_size),
+        Uniform::new("corner_radius", <[f32; 4]>::from(corner_radius)),
+        mat3_uniform("input_to_geo", input_to_clip_geo),
+        Uniform::new("noise", noise),
+        Uniform::new("saturation", saturation),
+        Uniform::new("bg_color", [0f32, 0., 0., 0.]),
+    ]
 }
 
 impl FramebufferEffectElement {
@@ -99,38 +256,38 @@ impl FramebufferEffectElement {
         crop: Rectangle<f64, Logical>,
         transform: Transform,
     ) -> [Uniform<'static>; 7] {
-        let offset = crop.loc - (self.clip_geo.loc - self.geometry.loc);
-        let offset = Vec2::new(offset.x as f32, offset.y as f32);
-        let crop_size = Vec2::new(crop.size.w as f32, crop.size.h as f32);
-        let clip_size = Vec2::new(self.clip_geo.size.w as f32, self.clip_geo.size.h as f32);
+        clip_uniforms(
+            self.geometry,
+            self.clip_geo,
+            self.corner_radius,
+            self.scale,
+            self.noise,
+            self.saturation,
+            crop,
+            transform,
+            None,
+        )
+    }
+}
 
-        // Our v_coords are [0, 1] inside crop. We want them to be [0, 1] inside clip_geo.
-        let input_to_clip_geo =
-            Mat3::from_scale(crop_size / clip_size) * Mat3::from_translation(offset / crop_size);
-
-        // Revert the effect of the texture transform.
-        let transform_mat = Mat3::from_translation(Vec2::new(0.5, 0.5))
-            * Mat3::from_cols_array(transform.matrix().as_ref())
-            * Mat3::from_translation(Vec2::new(-0.5, -0.5));
-        let input_to_clip_geo = input_to_clip_geo * transform_mat;
-
-        let clip_geo_size = (self.clip_geo.size.w as f32, self.clip_geo.size.h as f32);
-
-        [
-            Uniform::new("niri_scale", self.scale),
-            Uniform::new("geo_size", clip_geo_size),
-            Uniform::new("corner_radius", <[f32; 4]>::from(self.corner_radius)),
-            mat3_uniform("input_to_geo", input_to_clip_geo),
-            Uniform::new("noise", self.noise),
-            Uniform::new("saturation", self.saturation),
-            Uniform::new("bg_color", [0f32, 0., 0., 0.]),
-        ]
+impl FramebufferEffectElement {
+    fn share_capture(&self, inner: &Inner, dst: Rectangle<i32, Physical>) {
+        if let Some(share) = &self.share {
+            *share.borrow_mut() = inner
+                .intermediate
+                .clone()
+                .map(|texture| Captured { texture, dst });
+        }
     }
 }
 
 impl Element for FramebufferEffectElement {
     fn id(&self) -> &Id {
         &self.id
+    }
+
+    fn alpha(&self) -> f32 {
+        self.alpha
     }
 
     fn current_commit(&self) -> CommitCounter {
@@ -300,6 +457,7 @@ impl RenderElement<GlesRenderer> for FramebufferEffectElement {
             // If blur is off, use the unblurred texture.
             if self.blur_options.is_none() {
                 inner.intermediate = Some(framebuffer.clone());
+                self.share_capture(inner, clamped_dst);
                 return Ok(());
             }
 
@@ -314,6 +472,8 @@ impl RenderElement<GlesRenderer> for FramebufferEffectElement {
                 }
             }
 
+            self.share_capture(inner, clamped_dst);
+
             Ok(())
         })
     }
@@ -327,6 +487,11 @@ impl RenderElement<GlesRenderer> for FramebufferEffectElement {
         _opaque_regions: &[Rectangle<i32, Physical>],
         cache: Option<&UserDataMap>,
     ) -> Result<(), GlesError> {
+        // A capture-only element leaves the drawing to the shapes.
+        if self.share.is_some() {
+            return Ok(());
+        }
+
         let Some(cache) = cache else {
             return Ok(());
         };
@@ -402,7 +567,7 @@ impl RenderElement<GlesRenderer> for FramebufferEffectElement {
             &[],
             // The intermediate texture has the same transform as the frame.
             frame.transformation().invert(),
-            1.,
+            self.alpha,
             program.as_ref(),
             uniforms,
         )
@@ -453,5 +618,151 @@ impl Inner {
             intermediate: None,
             subregion_damage: Vec::new(),
         }
+    }
+}
+
+impl Element for FramebufferSampleElement {
+    fn id(&self) -> &Id {
+        &self.id
+    }
+
+    fn alpha(&self) -> f32 {
+        self.alpha
+    }
+
+    fn current_commit(&self) -> CommitCounter {
+        self.commit
+    }
+
+    fn src(&self) -> Rectangle<f64, Buffer> {
+        // Like the framebuffer effect, src only tells how we were cropped.
+        let size = self.geometry.size.to_buffer(1., Transform::Normal);
+        Rectangle::from_size(size)
+    }
+
+    fn geometry(&self, scale: Scale<f64>) -> Rectangle<i32, Physical> {
+        self.geometry.to_physical_precise_round(scale)
+    }
+}
+
+impl RenderElement<GlesRenderer> for FramebufferSampleElement {
+    fn draw(
+        &self,
+        frame: &mut GlesFrame<'_, '_>,
+        src: Rectangle<f64, Buffer>,
+        dst: Rectangle<i32, Physical>,
+        damage: &[Rectangle<i32, Physical>],
+        _opaque_regions: &[Rectangle<i32, Physical>],
+        _cache: Option<&UserDataMap>,
+    ) -> Result<(), GlesError> {
+        let shared = self.shared.borrow();
+        let Some(captured) = shared.as_ref() else {
+            return Ok(());
+        };
+
+        // Clamp the same way as the capture.
+        let output_rect = Rectangle::from_size(frame.output_size());
+        let Some(clamped_dst) = dst.intersection(output_rect) else {
+            return Ok(());
+        };
+        let clamp_offset = clamped_dst.loc - dst.loc;
+
+        let within = Rectangle::new(clamp_offset, clamped_dst.size);
+        let damage: Vec<_> = damage
+            .iter()
+            .filter_map(|d| d.intersection(within))
+            .map(|mut d| {
+                d.loc -= clamp_offset;
+                d
+            })
+            .collect();
+        if damage.is_empty() {
+            return Ok(());
+        }
+
+        // Where this shape is in the capture, which has the frame's transform.
+        let transform = frame.transformation();
+        let captured_rect = transform.transform_rect_in(captured.dst, &output_rect.size);
+        let rect = transform.transform_rect_in(clamped_dst, &output_rect.size);
+        let texture_size = captured.texture.size().to_f64();
+        let sx = texture_size.w / f64::from(captured_rect.size.w.max(1));
+        let sy = texture_size.h / f64::from(captured_rect.size.h.max(1));
+        let texture_src = Rectangle::<f64, Buffer>::new(
+            (
+                f64::from(rect.loc.x - captured_rect.loc.x) * sx,
+                f64::from(rect.loc.y - captured_rect.loc.y) * sy,
+            )
+                .into(),
+            (f64::from(rect.size.w) * sx, f64::from(rect.size.h) * sy).into(),
+        );
+
+        // Adjust src proportionally to the dst clamping, for the clip.
+        let src_loc = src.loc.to_logical(1., Transform::Normal, &src.size);
+        let dst_to_src = src.size / dst.size.to_f64();
+        let crop = Rectangle::new(
+            src_loc + clamp_offset.to_f64().upscale(dst_to_src).to_logical(1.),
+            clamped_dst.size.to_f64().upscale(dst_to_src).to_logical(1.),
+        );
+
+        let program = Shaders::get_from_frame(frame).postprocess_and_clip.clone();
+        let uniforms = program.is_some().then(|| {
+            clip_uniforms(
+                self.geometry,
+                self.clip_geo,
+                self.corner_radius,
+                self.scale,
+                self.noise,
+                self.saturation,
+                crop,
+                transform,
+                Some((
+                    Vec2::new(
+                        (texture_src.loc.x / texture_size.w) as f32,
+                        (texture_src.loc.y / texture_size.h) as f32,
+                    ),
+                    Vec2::new(
+                        (texture_src.size.w / texture_size.w) as f32,
+                        (texture_src.size.h / texture_size.h) as f32,
+                    ),
+                )),
+            )
+        });
+        let uniforms = uniforms.as_ref().map_or(&[][..], |x| &x[..]);
+
+        frame.render_texture_from_to(
+            &captured.texture,
+            texture_src,
+            clamped_dst,
+            &damage,
+            &[],
+            transform.invert(),
+            self.alpha,
+            program.as_ref(),
+            uniforms,
+        )
+    }
+}
+
+impl<'render> RenderElement<TtyRenderer<'render>> for FramebufferSampleElement {
+    fn draw(
+        &self,
+        frame: &mut TtyFrame<'_, '_, '_>,
+        src: Rectangle<f64, Buffer>,
+        dst: Rectangle<i32, Physical>,
+        damage: &[Rectangle<i32, Physical>],
+        opaque_regions: &[Rectangle<i32, Physical>],
+        cache: Option<&UserDataMap>,
+    ) -> Result<(), TtyRendererError<'render>> {
+        let gles_frame = frame.as_gles_frame();
+        RenderElement::<GlesRenderer>::draw(
+            &self,
+            gles_frame,
+            src,
+            dst,
+            damage,
+            opaque_regions,
+            cache,
+        )?;
+        Ok(())
     }
 }

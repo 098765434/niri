@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="niri_blur_shapes_v1">
+  <copyright>
+    Copyright © 2026 the niri fork contributors
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+  </copyright>
+
+  <description summary="rounded, translucent background blur shapes">
+    Lets a client describe where the compositor draws its background effect
+    (blur) behind a surface as a list of rounded rectangles, each with its own
+    opacity and material, instead of the rectangles of a wl_region.
+
+    This complements ext_background_effect_v1: a surface with blur shapes is
+    treated as a surface that set a blur region, so blur is on unless the
+    compositor's rules say otherwise, and the shapes take the place of the
+    region.
+  </description>
+
+  <interface name="niri_blur_shapes_manager_v1" version="1">
+    <description summary="blur shapes factory">
+      On bind, the compositor sends one material event per material it can
+      draw. Material 0, plain blur, is always available and not announced.
+    </description>
+
+    <enum name="error">
+      <entry name="already_constructed" value="0"
+        summary="the surface already has a blur shapes object"/>
+    </enum>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the manager">
+        Objects created through this manager are not affected.
+      </description>
+    </request>
+
+    <request name="get_blur_shapes">
+      <description summary="get the blur shapes object for a surface">
+        It is a protocol error to ask for a second object for the same surface
+        while the first exists.
+      </description>
+      <arg name="id" type="new_id" interface="niri_blur_shapes_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+
+    <event name="material">
+      <description summary="a material the compositor can draw">
+        A named look for the blurred background, configured in the compositor.
+        Sent on bind and again, for every material, when the configuration
+        changes; an id is only meaningful until the next done event.
+      </description>
+      <arg name="id" type="uint"/>
+      <arg name="name" type="string"/>
+    </event>
+
+    <event name="done">
+      <description summary="all materials have been sent"/>
+    </event>
+  </interface>
+
+  <interface name="niri_blur_shapes_v1" version="1">
+    <description summary="blur shapes of a surface">
+      The shapes are double-buffered state, applied on the next
+      wl_surface.commit. Once reset, the committed list replaces the surface's
+      ext_background_effect_v1 blur region; an empty list means no blur.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="go back to the blur region">
+        On the next commit the surface's blur region applies again.
+      </description>
+    </request>
+
+    <request name="reset">
+      <description summary="start a new list">
+        Empties the pending list of shapes.
+      </description>
+    </request>
+
+    <request name="add_rounded_rect">
+      <description summary="add a shape to the pending list">
+        Coordinates are in the surface-local coordinate space. Radii larger
+        than half the shorter side are reduced to fit. The alpha multiplies
+        the whole effect inside the shape and is clamped to 0..1.
+
+        A material id the compositor did not announce draws plain blur. The
+        tint is a colour laid over the blurred background in the shape,
+        premultiplied 0xRRGGBBAA; a material may ignore it, and 0 means none.
+      </description>
+      <arg name="x" type="fixed"/>
+      <arg name="y" type="fixed"/>
+      <arg name="width" type="fixed"/>
+      <arg name="height" type="fixed"/>
+      <arg name="radius_top_left" type="fixed"/>
+      <arg name="radius_top_right" type="fixed"/>
+      <arg name="radius_bottom_right" type="fixed"/>
+      <arg name="radius_bottom_left" type="fixed"/>
+      <arg name="alpha" type="fixed"/>
+      <arg name="material" type="uint"/>
+      <arg name="tint" type="uint"/>
+    </request>
+  </interface>
+</protocol>
