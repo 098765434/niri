@@ -56,11 +56,15 @@ of an `ext-background-effect-v1` region (integer rectangles, no rounding, no fad
 is drawn through the existing corner-rounding shader, half a physical pixel inside the shape so
 it stays under the client's own antialiased edge, at its alpha (blur can fade). Xray draws one
 quad per shape from the shared blurred background; non-xray captures and blurs the area behind
-all of a surface's shapes once and draws each shape from that capture. Materials are announced
-by the manager but none are configured yet; every shape draws plain blur. Client: amane's
+all of a surface's shapes once and draws each shape from that capture. Materials are named liquid-glass
+presets in a `materials {}` config block (`niri-config/src/appearance.rs`), announced to clients
+and drawn by `src/render_helpers/shaders/glass.frag`: SDF-normal refraction with red/blue
+parting, a lit rim with far-edge catch and highlight, and an adaptive tint, after
+kwin-effects-glass and Niri-glass (both GPL-3.0). Client: amane's
 `LayerWindow::blur_shapes`. Touched files: `src/protocols/{blur_shapes,raw,mod}.rs`,
 `src/handlers/background_effect.rs`, `src/render_helpers/{background_effect,xray,framebuffer_effect}.rs`,
-`src/niri.rs`, `docs/wiki/Window-Effects.md`.
+`src/niri.rs`, `src/render_helpers/shaders/{glass.frag,mod.rs}`, `niri-config/src/{appearance,lib}.rs`,
+`docs/wiki/Window-Effects.md`.
 
 ## Consumed by
 

@@ -48,11 +48,18 @@ impl Cacheable for BlurShapesCachedState {
 }
 
 pub trait BlurShapesHandler {
+    fn blur_shapes_state(&mut self) -> &mut BlurShapesManagerState;
+
     /// The pending shapes of a surface changed, and apply on its next commit.
     fn blur_shapes_changed(&mut self, surface: WlSurface);
 }
 
-pub struct BlurShapesManagerState {}
+pub struct BlurShapesManagerState {
+    /// The managers clients hold, to tell when the materials change.
+    managers: Vec<NiriBlurShapesManagerV1>,
+    /// The materials' names; a material's id is its place here, from 1.
+    materials: Vec<String>,
+}
 
 pub struct BlurShapesUserData(Mutex<Weak<WlSurface>>);
 
@@ -76,8 +83,30 @@ impl BlurShapesManagerState {
         D: 'static,
     {
         display.create_global::<D, NiriBlurShapesManagerV1, _>(VERSION, ());
-        Self {}
+        Self {
+            managers: Vec::new(),
+            materials: Vec::new(),
+        }
     }
+
+    /// Tells every client the materials there are now.
+    pub fn set_materials(&mut self, materials: Vec<String>) {
+        if self.materials == materials {
+            return;
+        }
+        self.materials = materials;
+        self.managers.retain(|manager| manager.is_alive());
+        for manager in &self.managers {
+            announce(manager, &self.materials);
+        }
+    }
+}
+
+fn announce(manager: &NiriBlurShapesManagerV1, materials: &[String]) {
+    for (i, name) in materials.iter().enumerate() {
+        manager.material(i as u32 + 1, name.clone());
+    }
+    manager.done();
 }
 
 impl<D> GlobalDispatch<NiriBlurShapesManagerV1, (), D> for BlurShapesManagerState
@@ -89,7 +118,7 @@ where
     D: 'static,
 {
     fn bind(
-        _state: &mut D,
+        state: &mut D,
         _handle: &DisplayHandle,
         _client: &Client,
         manager: New<NiriBlurShapesManagerV1>,
@@ -97,7 +126,10 @@ where
         data_init: &mut DataInit<'_, D>,
     ) {
         let manager = data_init.init(manager, ());
-        manager.done();
+        let state = state.blur_shapes_state();
+        announce(&manager, &state.materials);
+        state.managers.retain(|manager| manager.is_alive());
+        state.managers.push(manager);
     }
 }
 

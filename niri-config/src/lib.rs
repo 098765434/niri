@@ -81,6 +81,7 @@ pub struct Config {
     pub config_notification: ConfigNotification,
     pub animations: Animations,
     pub blur: Blur,
+    pub materials: Materials,
     pub gestures: Gestures,
     pub overview: Overview,
     pub environment: Environment,
@@ -232,6 +233,14 @@ where
                 "environment" => {
                     let part = Environment::decode_node(node, ctx)?;
                     config.borrow_mut().environment.0.extend(part.0);
+                }
+                "materials" => {
+                    let part = Materials::decode_node(node, ctx)?;
+                    // A material from a later file replaces one of the same name.
+                    let mut config = config.borrow_mut();
+                    let materials = &mut config.materials.0;
+                    materials.retain(|m| !part.0.iter().any(|new| new.name == m.name));
+                    materials.extend(part.0);
                 }
 
                 "prefer-no-csd" => {
@@ -653,6 +662,33 @@ mod tests {
         Config::parse_mem(text)
             .map_err(miette::Report::new)
             .unwrap()
+    }
+
+    #[test]
+    fn parse_materials() {
+        let parsed = do_parse(
+            r#"
+            materials {
+                material "glass" {
+                    refraction 12
+                    dispersion 0.5
+                    light-angle 200
+                }
+                material "frosted" {
+                    rim 0
+                }
+            }
+            "#,
+        );
+        let names: Vec<_> = parsed.materials.0.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, ["glass", "frosted"]);
+        let glass = parsed.materials.0[0].params();
+        assert_eq!(glass.refraction, 12.);
+        assert_eq!(glass.dispersion, 0.5);
+        assert_eq!(glass.light_angle, 200.);
+        // unset values take the defaults
+        assert_eq!(glass.bevel, 16.);
+        assert_eq!(parsed.materials.0[1].params().rim, 0.);
     }
 
     #[test]
@@ -1646,6 +1682,9 @@ mod tests {
                 noise: 0.02,
                 saturation: 1.5,
             },
+            materials: Materials(
+                [],
+            ),
             gestures: Gestures {
                 dnd_edge_view_scroll: DndEdgeViewScroll {
                     trigger_width: 10.0,

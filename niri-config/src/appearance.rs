@@ -1103,6 +1103,86 @@ impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
     }
 }
 
+/// Named looks for blur shapes (`niri-blur-shapes-v1`): liquid glass drawn by niri over the
+/// blurred background, which a client picks by name for each shape.
+#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
+pub struct Materials(#[knuffel(children(name = "material"))] pub Vec<Material>);
+
+#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+pub struct Material {
+    #[knuffel(argument)]
+    pub name: String,
+    /// How far the edge bends the background in, in logical pixels.
+    #[knuffel(child, unwrap(argument))]
+    pub refraction: Option<FloatOrInt<0, 200>>,
+    /// How wide the curved edge is, in logical pixels.
+    #[knuffel(child, unwrap(argument))]
+    pub bevel: Option<FloatOrInt<0, 200>>,
+    /// How far red and blue part at the edge, 0 to 1.
+    #[knuffel(child, unwrap(argument))]
+    pub dispersion: Option<FloatOrInt<0, 1>>,
+    /// How bright the lit rim is, 0 to 1.
+    #[knuffel(child, unwrap(argument))]
+    pub rim: Option<FloatOrInt<0, 1>>,
+    /// Where the light comes from, in degrees clockwise from the right (225 is the top left).
+    #[knuffel(child, unwrap(argument))]
+    pub light_angle: Option<FloatOrInt<0, 360>>,
+    /// How much of the rim's light catches the far edge, 0 to 1.
+    #[knuffel(child, unwrap(argument))]
+    pub far_rim: Option<FloatOrInt<0, 1>>,
+    /// How bright the highlight where the light hits the edge is, 0 to 1.
+    #[knuffel(child, unwrap(argument))]
+    pub specular: Option<FloatOrInt<0, 1>>,
+    /// How strongly the client's tint shows, 0 (none) to 2.
+    #[knuffel(child, unwrap(argument))]
+    pub tint: Option<FloatOrInt<0, 2>>,
+    /// How much the tint thickens over a backdrop close to it in brightness, 0 to 1.
+    #[knuffel(child, unwrap(argument))]
+    pub adaptive_tint: Option<FloatOrInt<0, 1>>,
+    /// Saturation of the background, in place of the blur's.
+    #[knuffel(child, unwrap(argument))]
+    pub saturation: Option<FloatOrInt<0, 1000>>,
+    /// Noise over the background, in place of the blur's.
+    #[knuffel(child, unwrap(argument))]
+    pub noise: Option<FloatOrInt<0, 1000>>,
+}
+
+/// A material with every value filled in.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MaterialParams {
+    pub refraction: f32,
+    pub bevel: f32,
+    pub dispersion: f32,
+    pub rim: f32,
+    pub light_angle: f32,
+    pub far_rim: f32,
+    pub specular: f32,
+    pub tint: f32,
+    pub adaptive_tint: f32,
+    pub saturation: Option<f32>,
+    pub noise: Option<f32>,
+}
+
+impl Material {
+    pub fn params(&self) -> MaterialParams {
+        let get = |v: Option<FloatOrInt<0, 200>>, d: f32| v.map_or(d, |v| v.0 as f32);
+        let unit = |v: Option<FloatOrInt<0, 1>>, d: f32| v.map_or(d, |v| v.0 as f32);
+        MaterialParams {
+            refraction: get(self.refraction, 10.),
+            bevel: get(self.bevel, 16.),
+            dispersion: unit(self.dispersion, 0.25),
+            rim: unit(self.rim, 0.5),
+            light_angle: self.light_angle.map_or(225., |v| v.0 as f32),
+            far_rim: unit(self.far_rim, 0.35),
+            specular: unit(self.specular, 0.4),
+            tint: self.tint.map_or(1., |v| v.0 as f32),
+            adaptive_tint: unit(self.adaptive_tint, 0.),
+            saturation: self.saturation.map(|v| v.0 as f32),
+            noise: self.noise.map(|v| v.0 as f32),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use insta::{assert_debug_snapshot, assert_snapshot};

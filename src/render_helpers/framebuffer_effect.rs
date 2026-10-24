@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use glam::{Mat3, Vec2};
-use niri_config::CornerRadius;
+use niri_config::{CornerRadius, MaterialParams};
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::element::{Element, Id, RenderElement};
 use smithay::backend::renderer::gles::{
@@ -15,7 +15,7 @@ use smithay::utils::user_data::UserDataMap;
 use smithay::utils::{Buffer, Logical, Physical, Rectangle, Scale, Transform};
 
 use crate::backend::tty::{TtyFrame, TtyRenderer, TtyRendererError};
-use crate::render_helpers::background_effect::RenderParams;
+use crate::render_helpers::background_effect::{glass_uniforms, RenderParams};
 use crate::render_helpers::blur::{Blur, BlurOptions};
 use crate::render_helpers::renderer::AsGlesFrame as _;
 use crate::render_helpers::shaders::{mat3_uniform, Shaders};
@@ -56,6 +56,8 @@ pub struct FramebufferSampleElement {
     alpha: f32,
     noise: f32,
     saturation: f32,
+    material: Option<MaterialParams>,
+    tint: [f32; 4],
     shared: SharedCapture,
 }
 
@@ -166,8 +168,13 @@ impl FramebufferEffect {
                 corner_radius,
                 scale: params.scale as f32,
                 alpha: params.alpha,
-                noise,
-                saturation,
+                noise: params.material.and_then(|m| m.noise).unwrap_or(noise),
+                saturation: params
+                    .material
+                    .and_then(|m| m.saturation)
+                    .unwrap_or(saturation),
+                material: params.material,
+                tint: params.tint,
                 shared: self.shared.clone(),
             }));
         }
@@ -181,6 +188,8 @@ impl FramebufferEffect {
                 scale,
                 alpha: 1.,
                 exact_clip: true,
+                material: None,
+                tint: [0.; 4],
             },
             blur_options,
             noise,
@@ -215,6 +224,28 @@ fn clip_uniforms(
     transform: Transform,
     texture_region: Option<(Vec2, Vec2)>,
 ) -> [Uniform<'static>; 7] {
+    let input_to_clip_geo = clip_matrix(geometry, clip_geo, crop, transform, texture_region);
+    let clip_geo_size = (clip_geo.size.w as f32, clip_geo.size.h as f32);
+
+    [
+        Uniform::new("niri_scale", scale),
+        Uniform::new("geo_size", clip_geo_size),
+        Uniform::new("corner_radius", <[f32; 4]>::from(corner_radius)),
+        mat3_uniform("input_to_geo", input_to_clip_geo),
+        Uniform::new("noise", noise),
+        Uniform::new("saturation", saturation),
+        Uniform::new("bg_color", [0f32, 0., 0., 0.]),
+    ]
+}
+
+/// Takes the shader's input to [0, 1] inside `clip_geo`; see `clip_uniforms`.
+fn clip_matrix(
+    geometry: Rectangle<f64, Logical>,
+    clip_geo: Rectangle<f64, Logical>,
+    crop: Rectangle<f64, Logical>,
+    transform: Transform,
+    texture_region: Option<(Vec2, Vec2)>,
+) -> Mat3 {
     let offset = crop.loc - (clip_geo.loc - geometry.loc);
     let offset = Vec2::new(offset.x as f32, offset.y as f32);
     let crop_size = Vec2::new(crop.size.w as f32, crop.size.h as f32);
@@ -237,17 +268,7 @@ fn clip_uniforms(
             * Mat3::from_translation(-origin);
     }
 
-    let clip_geo_size = (clip_geo.size.w as f32, clip_geo.size.h as f32);
-
-    [
-        Uniform::new("niri_scale", scale),
-        Uniform::new("geo_size", clip_geo_size),
-        Uniform::new("corner_radius", <[f32; 4]>::from(corner_radius)),
-        mat3_uniform("input_to_geo", input_to_clip_geo),
-        Uniform::new("noise", noise),
-        Uniform::new("saturation", saturation),
-        Uniform::new("bg_color", [0f32, 0., 0., 0.]),
-    ]
+    input_to_clip_geo
 }
 
 impl FramebufferEffectElement {
@@ -704,9 +725,23 @@ impl RenderElement<GlesRenderer> for FramebufferSampleElement {
             clamped_dst.size.to_f64().upscale(dst_to_src).to_logical(1.),
         );
 
-        let program = Shaders::get_from_frame(frame).postprocess_and_clip.clone();
+        let texture_region = Some((
+            Vec2::new(
+                (texture_src.loc.x / texture_size.w) as f32,
+                (texture_src.loc.y / texture_size.h) as f32,
+            ),
+            Vec2::new(
+                (texture_src.size.w / texture_size.w) as f32,
+                (texture_src.size.h / texture_size.h) as f32,
+            ),
+        ));
+        let shaders = Shaders::get_from_frame(frame);
+        let (program, glass) = match (&self.material, &shaders.glass) {
+            (Some(material), Some(glass)) => (Some(glass.clone()), Some(material)),
+            _ => (shaders.postprocess_and_clip.clone(), None),
+        };
         let uniforms = program.is_some().then(|| {
-            clip_uniforms(
+            let mut uniforms = clip_uniforms(
                 self.geometry,
                 self.clip_geo,
                 self.corner_radius,
@@ -715,17 +750,20 @@ impl RenderElement<GlesRenderer> for FramebufferSampleElement {
                 self.saturation,
                 crop,
                 transform,
-                Some((
-                    Vec2::new(
-                        (texture_src.loc.x / texture_size.w) as f32,
-                        (texture_src.loc.y / texture_size.h) as f32,
-                    ),
-                    Vec2::new(
-                        (texture_src.size.w / texture_size.w) as f32,
-                        (texture_src.size.h / texture_size.h) as f32,
-                    ),
-                )),
+                texture_region,
             )
+            .to_vec();
+            if let Some(material) = glass {
+                let matrix = clip_matrix(
+                    self.geometry,
+                    self.clip_geo,
+                    crop,
+                    transform,
+                    texture_region,
+                );
+                uniforms.extend(glass_uniforms(material, self.tint, matrix));
+            }
+            uniforms
         });
         let uniforms = uniforms.as_ref().map_or(&[][..], |x| &x[..]);
 

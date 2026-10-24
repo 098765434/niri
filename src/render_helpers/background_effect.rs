@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use niri_config::CornerRadius;
-use smithay::backend::renderer::gles::GlesRenderer;
+use glam::Mat3;
+use niri_config::{CornerRadius, MaterialParams};
+use smithay::backend::renderer::gles::{GlesRenderer, Uniform};
 use smithay::utils::{Logical, Point, Rectangle, Scale};
 use smithay::wayland::compositor::{with_states, SurfaceData};
 use wayland_server::protocol::wl_surface::WlSurface;
@@ -14,6 +15,7 @@ use crate::render_helpers::damage::ExtraDamage;
 use crate::render_helpers::framebuffer_effect::{
     FramebufferEffect, FramebufferEffectElement, FramebufferShapeElement,
 };
+use crate::render_helpers::shaders::mat3_uniform;
 use crate::render_helpers::xray::{XrayElement, XrayPos};
 use crate::render_helpers::RenderCtx;
 use crate::utils::region::TransformedRegion;
@@ -68,6 +70,51 @@ pub struct RenderParams {
     /// Whether `clip` is a shape the surface drew itself, to follow exactly rather than with
     /// the rule's corner radius.
     pub exact_clip: bool,
+    /// The material to draw with instead of plain blur.
+    pub material: Option<MaterialParams>,
+    /// Premultiplied tint for the material.
+    pub tint: [f32; 4],
+}
+
+/// The configured materials, by id less one, as `niri-blur-shapes-v1` announces them.
+static MATERIALS: Mutex<Vec<MaterialParams>> = Mutex::new(Vec::new());
+
+pub fn set_materials(materials: &niri_config::Materials) {
+    *MATERIALS.lock().unwrap() = materials.0.iter().map(|m| m.params()).collect();
+}
+
+/// The material a shape names, none for plain blur or an id that isn't configured.
+fn material(id: u32) -> Option<MaterialParams> {
+    let index = usize::try_from(id).ok()?.checked_sub(1)?;
+    MATERIALS.lock().unwrap().get(index).copied()
+}
+
+/// The glass shader's own uniforms, for an element whose shader input maps to its clip
+/// geometry through `input_to_geo`.
+pub fn glass_uniforms(
+    material: &MaterialParams,
+    tint: [f32; 4],
+    input_to_geo: Mat3,
+) -> [Uniform<'static>; 5] {
+    let (sin, cos) = material.light_angle.to_radians().sin_cos();
+    [
+        mat3_uniform("geo_to_input", input_to_geo.inverse()),
+        Uniform::new("glass_tint", tint),
+        Uniform::new(
+            "glass_shape",
+            [
+                material.refraction,
+                material.bevel,
+                material.dispersion,
+                material.rim,
+            ],
+        ),
+        Uniform::new(
+            "glass_light",
+            [cos, sin, material.far_rim, material.specular],
+        ),
+        Uniform::new("glass_tint_params", [material.tint, material.adaptive_tint]),
+    ]
 }
 
 impl RenderParams {
@@ -286,6 +333,8 @@ fn render_params_for_tile(
         scale,
         alpha: 1.,
         exact_clip: false,
+        material: None,
+        tint: [0.; 4],
     })
 }
 
@@ -338,6 +387,8 @@ fn render_params_for_shapes(
                 scale,
                 alpha: shape.alpha,
                 exact_clip: true,
+                material: material(shape.material),
+                tint: shape.tint,
             })
         })
         .collect()

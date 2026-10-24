@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use glam::{Mat3, Vec2};
-use niri_config::CornerRadius;
+use niri_config::{CornerRadius, MaterialParams};
 use smithay::backend::renderer::element::{Element, Id, RenderElement};
 use smithay::backend::renderer::gles::{
     GlesError, GlesFrame, GlesRenderer, GlesTexProgram, Uniform,
@@ -14,7 +14,7 @@ use smithay::utils::user_data::UserDataMap;
 use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 
 use crate::backend::tty::{TtyFrame, TtyRenderer, TtyRendererError};
-use crate::render_helpers::background_effect::RenderParams;
+use crate::render_helpers::background_effect::{glass_uniforms, RenderParams};
 use crate::render_helpers::effect_buffer::EffectBuffer;
 use crate::render_helpers::renderer::AsGlesFrame as _;
 use crate::render_helpers::shaders::{mat3_uniform, Shaders};
@@ -77,6 +77,8 @@ pub struct XrayElement {
     corner_radius: CornerRadius,
     scale: f32,
     alpha: f32,
+    material: Option<MaterialParams>,
+    tint: [f32; 4],
     blur: bool,
     noise: f32,
     saturation: f32,
@@ -104,7 +106,9 @@ impl Xray {
         saturation: f32,
         push: &mut dyn FnMut(XrayElement),
     ) {
-        let program = Shaders::get(ctx.renderer).postprocess_and_clip.clone();
+        let shaders = Shaders::get(ctx.renderer);
+        let plain = shaders.postprocess_and_clip.clone();
+        let glass = shaders.glass.clone();
 
         let mut background = self.background[ctx.target as usize].borrow_mut();
         let prev = background.commit();
@@ -118,6 +122,13 @@ impl Xray {
         let mut backdrop_ready = None;
 
         for (params, xray_pos) in areas {
+            // a material draws with the glass shader, when it compiled
+            let (program, material) = match (params.material, &glass) {
+                (Some(material), Some(glass)) => (Some(glass.clone()), Some(material)),
+                _ => (plain.clone(), None),
+            };
+            let noise = material.and_then(|m| m.noise).unwrap_or(noise);
+            let saturation = material.and_then(|m| m.saturation).unwrap_or(saturation);
             let zoom = xray_pos.zoom;
             let pos_in_backdrop = xray_pos.pos_in_backdrop.upscale(zoom);
 
@@ -206,6 +217,8 @@ impl Xray {
                         corner_radius,
                         scale: params.scale as f32,
                         alpha: params.alpha,
+                        material,
+                        tint: params.tint,
                         blur,
                         noise,
                         saturation,
@@ -263,6 +276,8 @@ impl Xray {
                 corner_radius: corner_radius.scaled_by(zoom as f32),
                 scale: params.scale as f32,
                 alpha: params.alpha,
+                material,
+                tint: params.tint,
                 blur,
                 noise,
                 saturation,
@@ -275,8 +290,8 @@ impl Xray {
 }
 
 impl XrayElement {
-    fn compute_uniforms(&self) -> [Uniform<'static>; 7] {
-        [
+    fn compute_uniforms(&self) -> Vec<Uniform<'static>> {
+        let mut uniforms = vec![
             Uniform::new("niri_scale", self.scale),
             Uniform::new("geo_size", <[f32; 2]>::from(self.clip_geo_size)),
             Uniform::new("corner_radius", <[f32; 4]>::from(self.corner_radius)),
@@ -284,7 +299,11 @@ impl XrayElement {
             Uniform::new("noise", self.noise),
             Uniform::new("saturation", self.saturation),
             Uniform::new("bg_color", self.bg_color.components()),
-        ]
+        ];
+        if let Some(material) = &self.material {
+            uniforms.extend(glass_uniforms(material, self.tint, self.input_to_clip_geo));
+        }
+        uniforms
     }
 }
 

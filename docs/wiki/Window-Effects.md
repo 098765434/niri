@@ -46,6 +46,29 @@ This fork also offers `niri-blur-shapes-v1`: instead of a region of rectangles, 
 niri draws each with antialiased corners at its opacity, so a client with many rounded pieces of glass (such as a control center) gets blur exactly in their shape that fades with them.
 A surface with blur shapes is treated like one with a blur region: blur is on unless a rule says `blur false`.
 
+A shape can also name a *material*, a liquid-glass look niri draws over the blurred background: the edge bends what's behind it like a lens, red and blue part slightly there, the rim is lit from one side, and the client's tint is laid on, thicker over a backdrop close to it in brightness.
+Materials are defined in the config, and niri tells clients which names exist; a name that isn't defined draws plain blur.
+
+```kdl
+materials {
+    material "glass" {
+        refraction 10     // how far the edge bends the background in, logical px
+        bevel 16          // how wide the curved edge is, logical px
+        dispersion 0.3    // red/blue parting at the edge, 0-1
+        rim 0.6           // lit rim brightness, 0-1
+        light-angle 225   // where the light comes from, degrees clockwise from the right
+        far-rim 0.35      // light caught on the far edge, 0-1
+        specular 0.5      // highlight where the light hits the edge, 0-1
+        tint 1            // how strongly the client's tint shows, 0-2
+        adaptive-tint 0   // thicken the tint over a backdrop of similar brightness, 0-1
+        // saturation 1.5 // optional, in place of the blur's
+        // noise 0.02     // optional, in place of the blur's
+    }
+}
+```
+
+Changing a material reloads live.
+
 Windows can also blur their pop-up menus using `ext-background-effect`.
 On the niri side, you can do it with a `popups` block inside [`window-rule`](./Configuration:-Window-Rules.md#popups) and [`layer-rule`](./Configuration:-Layer-Rules.md#popups).
 See those wiki pages for examples and limitations.
