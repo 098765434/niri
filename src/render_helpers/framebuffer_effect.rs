@@ -25,8 +25,9 @@ use crate::utils::region::TransformedRegion;
 pub struct FramebufferEffect {
     id: Id,
     commit: CommitCounter,
-    /// Id of the elements drawing shapes from one capture.
-    sample_id: Id,
+    /// Ids of the elements drawing shapes from one capture, one per shape: smithay tells
+    /// instances of one id apart only by where and how they're drawn.
+    sample_ids: RefCell<Vec<Id>>,
     /// The last capture for shapes, shared with the elements drawing them.
     shared: SharedCapture,
 }
@@ -92,7 +93,7 @@ impl FramebufferEffect {
         Self {
             id: Id::new(),
             commit: CommitCounter::default(),
-            sample_id: Id::new(),
+            sample_ids: RefCell::new(Vec::new()),
             shared: Rc::new(RefCell::new(None)),
         }
     }
@@ -148,20 +149,24 @@ impl FramebufferEffect {
         saturation: f32,
         push: &mut dyn FnMut(FramebufferShapeElement),
     ) {
-        let mut sample_id = self.sample_id.clone();
-        if let Some(ns) = ns {
-            sample_id = sample_id.namespaced(ns);
+        let mut ids = self.sample_ids.borrow_mut();
+        if ids.len() < shapes.len() {
+            ids.resize_with(shapes.len(), Id::new);
         }
 
         let scale = shapes.first().map_or(1., |params| params.scale);
 
-        for params in shapes {
+        for (params, id) in shapes.into_iter().zip(ids.iter()) {
+            let id = match ns {
+                Some(ns) => id.namespaced(ns),
+                None => id.clone(),
+            };
             let (clip_geo, corner_radius) = params
                 .clip
                 .unwrap_or((params.geometry, CornerRadius::default()));
 
             push(FramebufferShapeElement::Sample(FramebufferSampleElement {
-                id: sample_id.clone(),
+                id,
                 commit: self.commit,
                 geometry: params.geometry,
                 clip_geo,
