@@ -10,7 +10,9 @@ use smithay::wayland::compositor::{
     add_post_commit_hook, with_states, RegionAttributes, SurfaceData,
 };
 
+use crate::delegate_blur_shapes;
 use crate::niri::State;
+use crate::protocols::blur_shapes::{BlurShape, BlurShapesCachedState, BlurShapesHandler};
 use crate::utils::region::region_to_non_overlapping_rects;
 
 /// Per-surface cache for processed blur region (non-overlapping rects).
@@ -29,10 +31,32 @@ struct CachedBlurRegionInner {
     ///
     /// `None` means there's no blur region.
     rects: Option<Arc<Vec<Rectangle<i32, Logical>>>>,
+    /// Committed blur shapes, which take the place of the region when set.
+    shapes: Option<Arc<Vec<BlurShape>>>,
 }
 
-/// Gets the cached blur region for a surface, lazily recomputing if dirty.
-pub fn get_cached_blur_region(states: &SurfaceData) -> Option<Arc<Vec<Rectangle<i32, Logical>>>> {
+/// Where a surface asked for its background effect.
+#[derive(Debug, Clone)]
+pub enum BlurArea {
+    /// Non-overlapping rects of its blur region, in surface-local coordinates.
+    Rects(Arc<Vec<Rectangle<i32, Logical>>>),
+    /// Its blur shapes, in surface-local coordinates.
+    Shapes(Arc<Vec<BlurShape>>),
+}
+
+impl BlurArea {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            BlurArea::Rects(rects) => rects.is_empty(),
+            BlurArea::Shapes(shapes) => shapes.is_empty(),
+        }
+    }
+}
+
+/// Gets the cached blur area for a surface, lazily recomputing if dirty.
+///
+/// `None` means the surface asked for no particular area.
+pub fn get_cached_blur_area(states: &SurfaceData) -> Option<BlurArea> {
     let cache = states
         .data_map
         .get_or_insert_threadsafe(CachedBlurRegionUserData::default);
@@ -41,9 +65,23 @@ pub fn get_cached_blur_region(states: &SurfaceData) -> Option<Arc<Vec<Rectangle<
     if guard.dirty {
         guard.dirty = false;
         recompute_blur_region(states, &mut guard);
+        recompute_blur_shapes(states, &mut guard);
     }
 
-    guard.rects.clone()
+    if let Some(shapes) = &guard.shapes {
+        return Some(BlurArea::Shapes(shapes.clone()));
+    }
+    guard.rects.clone().map(BlurArea::Rects)
+}
+
+fn recompute_blur_shapes(states: &SurfaceData, inner: &mut CachedBlurRegionInner) {
+    let cached = &states.cached_state;
+    inner.shapes = if cached.has::<BlurShapesCachedState>() {
+        let mut guard = cached.get::<BlurShapesCachedState>();
+        guard.current().shapes.clone().map(Arc::new)
+    } else {
+        None
+    };
 }
 
 fn recompute_blur_region(states: &SurfaceData, inner: &mut CachedBlurRegionInner) {
@@ -121,3 +159,10 @@ impl ExtBackgroundEffectHandler for State {
     }
 }
 delegate_background_effect!(State);
+
+impl BlurShapesHandler for State {
+    fn blur_shapes_changed(&mut self, surface: WlSurface) {
+        mark_blur_region_pending_dirty(&surface);
+    }
+}
+delegate_blur_shapes!(State);

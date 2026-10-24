@@ -48,6 +48,20 @@ constants and limitations: [`niri-mod-swipe-spec.md`](./niri-mod-swipe-spec.md).
 `src/input/mod.rs`, `src/layout/{window_swipe,mod,tile,closing_window,scrolling,floating,workspace,tests}.rs`,
 `docs/wiki/{Gestures,Configuration:-Gestures}.md`.
 
+### Rounded, fading blur shapes (`niri-blur-shapes-v1`)
+
+A private protocol (`resources/niri-blur-shapes-v1.xml`) that lets a client describe its
+background blur as rounded rectangles, each with its own alpha, material id and tint, in place
+of an `ext-background-effect-v1` region (integer rectangles, no rounding, no fade). Each shape
+is drawn through the existing corner-rounding shader, half a physical pixel inside the shape so
+it stays under the client's own antialiased edge, at its alpha (blur can fade). Xray draws one
+quad per shape from the shared blurred background; non-xray captures and blurs the area behind
+all of a surface's shapes once and draws each shape from that capture. Materials are announced
+by the manager but none are configured yet; every shape draws plain blur. Client: amane's
+`LayerWindow::blur_shapes`. Touched files: `src/protocols/{blur_shapes,raw,mod}.rs`,
+`src/handlers/background_effect.rs`, `src/render_helpers/{background_effect,xray,framebuffer_effect}.rs`,
+`src/niri.rs`, `docs/wiki/Window-Effects.md`.
+
 ## Consumed by
 
 Built as the compositor via a flake input (`programs.niri.package`) — e.g. in a NixOS config:
