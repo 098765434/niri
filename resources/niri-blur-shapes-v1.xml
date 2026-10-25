@@ -34,7 +34,7 @@
     region.
   </description>
 
-  <interface name="niri_blur_shapes_manager_v1" version="1">
+  <interface name="niri_blur_shapes_manager_v1" version="2">
     <description summary="blur shapes factory">
       On bind, the compositor sends one material event per material it can
       draw. Material 0, plain blur, is always available and not announced.
@@ -75,7 +75,7 @@
     </event>
   </interface>
 
-  <interface name="niri_blur_shapes_v1" version="1">
+  <interface name="niri_blur_shapes_v1" version="2">
     <description summary="blur shapes of a surface">
       The shapes are double-buffered state, applied on the next
       wl_surface.commit. Once reset, the committed list replaces the surface's
@@ -116,5 +116,25 @@
       <arg name="material" type="uint"/>
       <arg name="tint" type="uint"/>
     </request>
+
+    <!-- Version 2 additions -->
+
+    <event name="backdrop" since="2">
+      <description summary="how bright the backdrop behind a shape is">
+        The mean luminance of the blurred background behind a shape, from 0
+        (black) to 1 (white), so the client can draw what's on it light or
+        dark to suit.
+
+        Sent only for shapes whose material the compositor configured to
+        report it, and only where it measures the background itself (not
+        for see-through, xray, effects). The reading is coarse and late: it
+        is taken at most a few times a second, and sent when it moved
+        noticeably since the last one sent for that shape. The index is the
+        shape's place, from 0, in the list of the commit it was drawn for; a
+        client should ignore an index past its current list.
+      </description>
+      <arg name="index" type="uint"/>
+      <arg name="luminance" type="fixed"/>
+    </event>
   </interface>
 </protocol>

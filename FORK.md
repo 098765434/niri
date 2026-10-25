@@ -21,7 +21,7 @@ stock upstream; the fork is a thin series of commits on top of a tagged release.
 |---|---|---|---|---|
 | [Gesture-progress IPC events](#gesture-progress-ipc-events) | feature | `59fe93e4` | [design](docs/fork/gesture-ipc.md) | maybe — generic IPC, but per-frame events are chatty |
 | [Mod-held window swipes](#mod-held-three-finger-window-swipes) | feature | `f4367f88`, `4177c74f` | [design](docs/fork/mod-swipe.md), [wiki](docs/wiki/Gestures.md#window-swipes) | maybe — behind a config switch |
-| [Blur shapes + glass materials](#rounded-fading-blur-shapes-and-liquid-glass) | feature | `13d945b5`, `454d9751`, `74b623a7` | [design](docs/fork/blur-shapes.md), [wiki](docs/wiki/Window-Effects.md) | no as-is — private protocol; GPL-3.0 shader lineage |
+| [Blur shapes + glass materials](#rounded-fading-blur-shapes-and-liquid-glass) | feature | `13d945b5`, `454d9751`, `74b623a7`, `3cde7327` | [design](docs/fork/blur-shapes.md), [wiki](docs/wiki/Window-Effects.md) | no as-is — private protocol; GPL-3.0 shader lineage |
 | [`active_column_idx` build fix](#fixes-and-housekeeping) | fix | `9d5bf9fc` | — | n/a (fixes the fork's own IPC commit) |
 | [Fork docs and housekeeping](#fixes-and-housekeeping) | internal | `9366e512`, `c5b8c69d`, `8fd4e23e`, `b414445c`, `6d9306a7`, `6baa66e5` | this file | no |
 
@@ -70,16 +70,22 @@ Releasing Mod mid-swipe cancels.
 rounded rectangles, each with its own alpha, material and tint. It replaces an
 `ext-background-effect-v1` region, which is integer rectangles with no rounding and no fade.
 Materials are named liquid-glass looks defined in a `materials {}` config block and drawn by
-`glass.frag`: refraction with red/blue parting, a lit rim and an adaptive tint.
+`glass.frag`: refraction with red/blue parting, a lit rim and an adaptive tint. A material can
+also materialize (its lens builds up as the shape fades in) and report the backdrop's brightness
+back to the client (protocol version 2). Layer and window rules can name a material too, for
+surfaces that can't send shapes, such as pop-ups.
 
-- **Surface:** protocol `resources/niri-blur-shapes-v1.xml`; config `materials { material "…" { … } }`.
+- **Surface:** protocol `resources/niri-blur-shapes-v1.xml`; config `materials { material "…" { … } }`,
+  and `background-effect { material "…" }` in rules.
 - **Files:** `src/protocols/{blur_shapes,raw,mod}.rs`, `src/handlers/background_effect.rs`,
-  `src/render_helpers/{background_effect,xray,framebuffer_effect}.rs`,
+  `src/render_helpers/{background_effect,backdrop,xray,framebuffer_effect}.rs`,
+  `src/{layer,window}/mapped.rs`,
   `src/render_helpers/shaders/{glass.frag,mod.rs}`, `src/niri.rs`,
-  `niri-config/src/{appearance,lib}.rs`, `docs/wiki/Window-Effects.md`.
+  `niri-config/src/{appearance,lib,window_rule}.rs`, `docs/wiki/Window-Effects.md`,
+  `docs/wiki/Configuration:-{Layer,Window}-Rules.md`.
 - **Client:** amane's `LayerWindow::blur_shapes`.
 - **Credits:** the shader follows kwin-effects-glass and Niri-glass (both GPL-3.0).
-- **Review it:** `git show 13d945b5 454d9751 74b623a7`
+- **Review it:** `git show 13d945b5 454d9751 74b623a7 3cde7327`
 
 ## Fixes and housekeeping
 

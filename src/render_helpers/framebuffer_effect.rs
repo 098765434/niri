@@ -15,6 +15,7 @@ use smithay::utils::user_data::UserDataMap;
 use smithay::utils::{Buffer, Logical, Physical, Rectangle, Scale, Transform};
 
 use crate::backend::tty::{TtyFrame, TtyRenderer, TtyRendererError};
+use crate::render_helpers::backdrop::SharedProbe;
 use crate::render_helpers::background_effect::{glass_uniforms, RenderParams};
 use crate::render_helpers::blur::{Blur, BlurOptions};
 use crate::render_helpers::renderer::AsGlesFrame as _;
@@ -30,6 +31,8 @@ pub struct FramebufferEffect {
     sample_ids: RefCell<Vec<Id>>,
     /// The last capture for shapes, shared with the elements drawing them.
     shared: SharedCapture,
+    /// How bright the backdrop is behind the shapes that report it.
+    probe: SharedProbe,
 }
 
 /// What a capture-only element captured, for the elements that draw from it.
@@ -60,6 +63,8 @@ pub struct FramebufferSampleElement {
     material: Option<MaterialParams>,
     tint: [f32; 4],
     shared: SharedCapture,
+    /// Where to read the backdrop for, and the shape's place in the surface's list.
+    report: Option<(SharedProbe, u32)>,
 }
 
 #[derive(Debug)]
@@ -95,7 +100,13 @@ impl FramebufferEffect {
             commit: CommitCounter::default(),
             sample_ids: RefCell::new(Vec::new()),
             shared: Rc::new(RefCell::new(None)),
+            probe: SharedProbe::default(),
         }
+    }
+
+    /// The readings of the backdrop behind the shapes that report it.
+    pub fn probe(&self) -> &SharedProbe {
+        &self.probe
     }
 
     pub fn damage(&mut self) {
@@ -181,6 +192,7 @@ impl FramebufferEffect {
                 material: params.material,
                 tint: params.tint,
                 shared: self.shared.clone(),
+                report: params.report.map(|index| (self.probe.clone(), index)),
             }));
         }
 
@@ -195,6 +207,7 @@ impl FramebufferEffect {
                 exact_clip: true,
                 material: None,
                 tint: [0.; 4],
+                report: None,
             },
             blur_options,
             noise,
@@ -740,6 +753,30 @@ impl RenderElement<GlesRenderer> for FramebufferSampleElement {
                 (texture_src.size.h / texture_size.h) as f32,
             ),
         ));
+        // read how bright the backdrop is here, now and then, without waiting for it
+        if let Some((probe, index)) = &self.report {
+            let mut probe = probe.borrow_mut();
+            let src = Rectangle::<i32, Buffer>::new(
+                (
+                    texture_src.loc.x.round() as i32,
+                    texture_src.loc.y.round() as i32,
+                )
+                    .into(),
+                (
+                    texture_src.size.w.round() as i32,
+                    texture_src.size.h.round() as i32,
+                )
+                    .into(),
+            );
+            let texture = captured.texture.tex_id();
+            frame.with_context(|gl| unsafe {
+                probe.poll(gl);
+                if probe.due(*index) {
+                    probe.issue(gl, texture, src, *index);
+                }
+            })?;
+        }
+
         let shaders = Shaders::get_from_frame(frame);
         let (program, glass) = match (&self.material, &shaders.glass) {
             (Some(material), Some(glass)) => (Some(glass.clone()), Some(material)),
@@ -766,7 +803,7 @@ impl RenderElement<GlesRenderer> for FramebufferSampleElement {
                     transform,
                     texture_region,
                 );
-                uniforms.extend(glass_uniforms(material, self.tint, matrix));
+                uniforms.extend(glass_uniforms(material, self.tint, matrix, self.alpha));
             }
             uniforms
         });

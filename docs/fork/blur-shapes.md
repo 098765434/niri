@@ -25,6 +25,10 @@ rectangles, each with its own opacity and look.
     takes `fixed` values in surface-local logical px. The material is an id from
     the manager (0 = plain blur), and the tint is packed RGBA.
   - The state is double-buffered and applies on `wl_surface.commit`.
+  - Event `backdrop(index, luminance)` (version 2) reports how bright the
+    blurred backdrop behind a shape is, 0 to 1, for materials with
+    `report-backdrop`. The surface's resource is kept in its data map
+    (`BlurShapesSurfaceData`) so it can be sent from the renderer.
 
 A surface with blur shapes is treated like one with a blur region: blur is on
 unless a rule says `blur false`.
@@ -58,17 +62,60 @@ looks that shapes pick by id. They are drawn by
 - The client's tint is laid on. With `adaptive-tint`, it is thickened over a
   backdrop of similar brightness.
 - Optional `saturation` / `noise` override the blur's own values.
+- With `materialize` (on by default), `glass_uniforms` scales the refraction,
+  dispersion, rim and specular by the element's alpha, so a shape fading in
+  builds its lens up instead of showing a finished lens at low opacity.
 
 Changing a material reloads live. A name that isn't defined draws plain blur.
 The shader follows kwin-effects-glass and Niri-glass (both GPL-3.0).
 
+### Backdrop readings (`report-backdrop`)
+
+`src/render_helpers/backdrop.rs`. For a non-xray shape whose material reports
+it, `render_params_for_shapes` keeps the shape's index in its list
+(`RenderParams.report`).
+- **Measure:** the `FramebufferSampleElement` drawing it blits its area of the
+  blurred capture down to 8×8 and reads it into a pixel-pack buffer behind a
+  fence. Nothing waits for the GPU. Each shape is measured at most every
+  250 ms.
+- **Report:** `render_for_tile`, on a later frame, maps the buffers whose
+  fences have passed, takes the mean luminance, and sends `backdrop` when it
+  moved by more than 0.08 since the last reading sent.
+- **Limits:** a reading lands with the next frame drawn after it, so a change
+  that redraws a single frame and then rests reports late, at the next redraw.
+  A surface destroyed with a reading in flight leaves its 256-byte buffer
+  behind, since no GL context is current to delete it then.
+
+### Materials on rules
+
+`background-effect { material "name" }` in a layer or window rule, or in its
+`popups {}` block, draws the rule's effect as that material. This is for
+surfaces that can't send shapes: amane's xdg-popups (menus, tooltips) have no
+blur-shapes object of their own.
+
+- The name is resolved in `BackgroundEffect::update_render_elements`, into
+  `Options.material`, on every update. A reloaded material therefore damages
+  through the options comparison.
+- `render_for_tile` turns the geometry-shaped params into a single blur shape
+  (`material_params`): the clip is the geometry inset by half a pixel, with the
+  rule's corner radius, and `exact_clip` is set. From there the shape path draws
+  it, both non-xray (`render_shapes`) and xray.
+- The tint is clear: the client fills its card itself, so it can follow its
+  theme. Adaptive tint then has nothing to thicken.
+- A surface with its own blur region (ext-background-effect, clip `None`) keeps
+  plain blur.
+- `BackgroundEffect`, `BackgroundEffectRule` and `ResolvedPopupsRules` are no
+  longer `Copy`, because of the name. The render paths clone them.
+
 ## Touched files
 
 `resources/niri-blur-shapes-v1.xml`, `src/protocols/{blur_shapes,raw,mod}.rs`,
+`src/render_helpers/backdrop.rs`,
 `src/handlers/background_effect.rs`,
 `src/render_helpers/{background_effect,xray,framebuffer_effect}.rs`,
 `src/render_helpers/shaders/{glass.frag,mod.rs}`, `src/niri.rs`,
-`niri-config/src/{appearance,lib}.rs`, `docs/wiki/Window-Effects.md`.
+`niri-config/src/{appearance,lib,window_rule}.rs`, `src/{layer,window}/mapped.rs`,
+`docs/wiki/Window-Effects.md`, `docs/wiki/Configuration:-{Layer,Window}-Rules.md`.
 
 ## Client
 
