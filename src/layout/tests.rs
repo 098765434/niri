@@ -494,6 +494,12 @@ enum Op {
     MoveColumnLeftOrToMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
     MoveColumnRightOrToMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
     MoveColumnToIndex(#[proptest(strategy = "1..=5usize")] usize),
+    MoveColumnWithWindowToIndex {
+        #[proptest(strategy = "1..=5usize")]
+        window_id: usize,
+        #[proptest(strategy = "1..=5usize")]
+        index: usize,
+    },
     MoveWindowDown,
     MoveWindowUp,
     MoveWindowDownOrToWorkspaceDown,
@@ -1174,6 +1180,9 @@ impl Op {
                 layout.move_column_right_or_to_output(&output);
             }
             Op::MoveColumnToIndex(index) => layout.move_column_to_index(index),
+            Op::MoveColumnWithWindowToIndex { window_id, index } => {
+                layout.move_column_with_window_to_index(&window_id, index)
+            }
             Op::MoveWindowDown => layout.move_down(),
             Op::MoveWindowUp => layout.move_up(),
             Op::MoveWindowDownOrToWorkspaceDown => layout.move_down_or_to_workspace_down(),
@@ -3376,6 +3385,52 @@ fn removing_window_above_preserves_focused_window() {
     let layout = check_ops(ops);
     let win = layout.focus().unwrap();
     assert_eq!(win.0.id, 1);
+}
+
+#[test]
+fn move_column_with_window_to_index_keeps_focus() {
+    let ops = [
+        Op::AddOutput(0),
+        Op::AddWindow {
+            params: TestWindowParams::new(0),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::FocusColumnFirst,
+        Op::FocusColumnRight,
+        Op::MoveColumnWithWindowToIndex {
+            window_id: 0,
+            index: 3,
+        },
+    ];
+
+    let layout = check_ops(ops);
+    let order: Vec<usize> = layout
+        .active_workspace()
+        .unwrap()
+        .scrolling()
+        .columns()
+        .map(|col| (0..3).find(|id| col.contains(id)).unwrap())
+        .collect();
+    assert_eq!(order, [1, 2, 0]);
+    assert_eq!(layout.focus().unwrap().0.id, 1);
+
+    // and back to the front, past the focused column
+    let mut layout = layout;
+    layout.move_column_with_window_to_index(&0, 1);
+    let order: Vec<usize> = layout
+        .active_workspace()
+        .unwrap()
+        .scrolling()
+        .columns()
+        .map(|col| (0..3).find(|id| col.contains(id)).unwrap())
+        .collect();
+    assert_eq!(order, [0, 1, 2]);
+    assert_eq!(layout.focus().unwrap().0.id, 1);
 }
 
 #[test]

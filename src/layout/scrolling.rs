@@ -1682,6 +1682,61 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.move_column_to(index.saturating_sub(1).min(self.columns.len() - 1));
     }
 
+    /// Moves the column holding `window` to `index` (from 1), keeping the active column active.
+    pub fn move_column_with_window_to_index(&mut self, window: &W::Id, index: usize) {
+        let Some(from) = self.columns.iter().position(|col| col.contains(window)) else {
+            return;
+        };
+        let to = index.saturating_sub(1).min(self.columns.len() - 1);
+        if from == to {
+            return;
+        }
+        if from == self.active_column_idx {
+            self.move_column_to(to);
+            return;
+        }
+
+        let active = self.active_column_idx;
+        let active_x = self.column_x(active);
+        let from_x = self.column_x(from);
+        let next_x = self.column_x(from + 1);
+
+        let mut column = self.columns.remove(from);
+        let data = self.data.remove(from);
+        cancel_resize_for_column(&mut self.interactive_resize, &mut column);
+        self.columns.insert(to, column);
+        self.data.insert(to, data);
+
+        // The active column stays the same column, wherever it ended up.
+        self.active_column_idx = if from < active && to >= active {
+            active - 1
+        } else if from > active && to <= active {
+            active + 1
+        } else {
+            active
+        };
+
+        // Keep the camera where it was.
+        let view_offset_delta = -self.column_x(self.active_column_idx) + active_x;
+        self.view_offset.offset(view_offset_delta);
+
+        // The column we just moved is offset by the difference between its new and old position.
+        let new_x = self.column_x(to);
+        self.columns[to].animate_move_from(from_x - new_x);
+
+        // All columns in between moved by the width of the column that we just moved.
+        let others_x_offset = next_x - from_x;
+        if from < to {
+            for col in &mut self.columns[from..to] {
+                col.animate_move_from(others_x_offset);
+            }
+        } else {
+            for col in &mut self.columns[to + 1..=from] {
+                col.animate_move_from(-others_x_offset);
+            }
+        }
+    }
+
     fn move_column_to(&mut self, new_idx: usize) {
         if self.active_column_idx == new_idx {
             return;

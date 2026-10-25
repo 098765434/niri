@@ -400,6 +400,12 @@ pub enum Action {
     MoveColumnRightOrToMonitorRight {},
     /// Move the focused column to a specific index on its workspace.
     MoveColumnToIndex {
+        /// Id of a window whose column to move.
+        ///
+        /// If `None`, uses the focused column. With an id, the focus stays where it is.
+        #[cfg_attr(feature = "clap", arg(long))]
+        window_id: Option<u64>,
+
         /// New index for the column.
         ///
         /// The index starts from 1 for the first column.

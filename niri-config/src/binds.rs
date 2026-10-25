@@ -192,6 +192,11 @@ pub enum Action {
     MoveColumnLeftOrToMonitorLeft,
     MoveColumnRightOrToMonitorRight,
     MoveColumnToIndex(#[knuffel(argument)] usize),
+    #[knuffel(skip)]
+    MoveColumnToIndexById {
+        window_id: u64,
+        index: usize,
+    },
     MoveWindowDown,
     MoveWindowUp,
     MoveWindowDownOrToWorkspaceDown,
@@ -469,7 +474,14 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::MoveColumnRight {} => Self::MoveColumnRight,
             niri_ipc::Action::MoveColumnToFirst {} => Self::MoveColumnToFirst,
             niri_ipc::Action::MoveColumnToLast {} => Self::MoveColumnToLast,
-            niri_ipc::Action::MoveColumnToIndex { index } => Self::MoveColumnToIndex(index),
+            niri_ipc::Action::MoveColumnToIndex {
+                window_id: None,
+                index,
+            } => Self::MoveColumnToIndex(index),
+            niri_ipc::Action::MoveColumnToIndex {
+                window_id: Some(window_id),
+                index,
+            } => Self::MoveColumnToIndexById { window_id, index },
             niri_ipc::Action::MoveColumnLeftOrToMonitorLeft {} => {
                 Self::MoveColumnLeftOrToMonitorLeft
             }

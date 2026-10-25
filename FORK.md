@@ -96,6 +96,7 @@ Materials are named liquid-glass looks defined in a `materials {}` config block 
 |---|---|---|
 | **Pinned columns**: a column docked to a screen edge, with its own rail, outside the scroll math; actions `pin-column`, `unpin-column`, `toggle-column-pinned`, `focus-pinned` | branch `pinned-columns` (`99562604`, pushed), spec `niri-pinned-columns-spec.md` on that branch | compositor core done with tests; overview drop target, shell UI and cross-workspace pins deferred; not merged into `ocbk` |
 | **Workspace mat**: a solid or glass backing behind the scrolling layout that fades out in the overview | [`docs/fork/workspace-mat.md`](docs/fork/workspace-mat.md) (untracked) | draft spec, no code |
+| **`MoveColumnToIndex` by window**: an optional `window_id` that moves that window's column (on whichever workspace it's on) without changing the active column or the focus, for amane-shell's dock drag (`Layout::move_column_with_window_to_index`, config action `MoveColumnToIndexById`) | [`docs/fork/column-by-window.md`](docs/fork/column-by-window.md); `ocbk` | done with a layout test and a proptest op; stock niri ignores the field and moves the focused column |
 
 The `pinned-columns` branch predates the move of the fork docs into `docs/fork/`. Expect a
 FORK.md conflict when it's rebased onto `ocbk`; move its spec to `docs/fork/pinned-columns.md`
