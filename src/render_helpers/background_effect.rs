@@ -9,7 +9,7 @@ use wayland_server::protocol::wl_surface::WlSurface;
 
 use crate::handlers::background_effect::{get_cached_blur_area, BlurArea};
 use crate::niri_render_elements;
-use crate::protocols::blur_shapes::BlurShape;
+use crate::protocols::blur_shapes::{self, BlurShape};
 use crate::render_helpers::blur::BlurOptions;
 use crate::render_helpers::damage::ExtraDamage;
 use crate::render_helpers::framebuffer_effect::{
@@ -41,6 +41,8 @@ pub struct Options {
     pub xray: bool,
     pub noise: Option<f64>,
     pub saturation: Option<f64>,
+    /// The rule's material, drawn in the shape of the geometry.
+    pub material: Option<MaterialParams>,
 }
 
 impl Options {
@@ -74,44 +76,73 @@ pub struct RenderParams {
     pub material: Option<MaterialParams>,
     /// Premultiplied tint for the material.
     pub tint: [f32; 4],
+    /// The shape's place in the surface's list, when its material reports the backdrop.
+    pub report: Option<u32>,
 }
 
-/// The configured materials, by id less one, as `niri-blur-shapes-v1` announces them.
-static MATERIALS: Mutex<Vec<MaterialParams>> = Mutex::new(Vec::new());
+/// The configured materials and their names, by id less one, as `niri-blur-shapes-v1`
+/// announces them.
+static MATERIALS: Mutex<Vec<(String, MaterialParams)>> = Mutex::new(Vec::new());
 
 pub fn set_materials(materials: &niri_config::Materials) {
-    *MATERIALS.lock().unwrap() = materials.0.iter().map(|m| m.params()).collect();
+    *MATERIALS.lock().unwrap() = materials
+        .0
+        .iter()
+        .map(|m| (m.name.clone(), m.params()))
+        .collect();
 }
 
 /// The material a shape names, none for plain blur or an id that isn't configured.
 fn material(id: u32) -> Option<MaterialParams> {
     let index = usize::try_from(id).ok()?.checked_sub(1)?;
-    MATERIALS.lock().unwrap().get(index).copied()
+    MATERIALS
+        .lock()
+        .unwrap()
+        .get(index)
+        .map(|(_, params)| *params)
+}
+
+/// The material a rule names, none if it isn't configured.
+fn material_named(name: &str) -> Option<MaterialParams> {
+    MATERIALS
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|(n, _)| n == name)
+        .map(|(_, params)| *params)
 }
 
 /// The glass shader's own uniforms, for an element whose shader input maps to its clip
-/// geometry through `input_to_geo`.
+/// geometry through `input_to_geo`, drawn at `alpha`. A material that materialises bends
+/// and lights the backdrop by as much as it shows, so the lens builds up as it fades in
+/// rather than a finished lens fading.
 pub fn glass_uniforms(
     material: &MaterialParams,
     tint: [f32; 4],
     input_to_geo: Mat3,
+    alpha: f32,
 ) -> [Uniform<'static>; 5] {
     let (sin, cos) = material.light_angle.to_radians().sin_cos();
+    let grown = if material.materialize {
+        alpha.clamp(0., 1.)
+    } else {
+        1.
+    };
     [
         mat3_uniform("geo_to_input", input_to_geo.inverse()),
         Uniform::new("glass_tint", tint),
         Uniform::new(
             "glass_shape",
             [
-                material.refraction,
+                material.refraction * grown,
                 material.bevel,
-                material.dispersion,
-                material.rim,
+                material.dispersion * grown,
+                material.rim * grown,
             ],
         ),
         Uniform::new(
             "glass_light",
-            [cos, sin, material.far_rim, material.specular],
+            [cos, sin, material.far_rim, material.specular * grown],
         ),
         Uniform::new("glass_tint_params", [material.tint, material.adaptive_tint]),
     ]
@@ -182,6 +213,8 @@ impl BackgroundEffect {
             xray: effect.xray == Some(true),
             noise: effect.noise,
             saturation: effect.saturation,
+            // looked up each time, so a reloaded material damages through the comparison below
+            material: effect.material.as_deref().and_then(material_named),
         };
 
         // If we have some background effect but xray wasn't explicitly set, default it to true
@@ -335,6 +368,7 @@ fn render_params_for_tile(
         exact_clip: false,
         material: None,
         tint: [0.; 4],
+        report: None,
     })
 }
 
@@ -355,8 +389,9 @@ fn render_params_for_shapes(
 
     shapes
         .iter()
-        .filter(|shape| shape.alpha > 0.)
-        .filter_map(|shape| {
+        .zip(0u32..)
+        .filter(|(shape, _)| shape.alpha > 0.)
+        .filter_map(|(shape, index)| {
             let mut rect = shape.rect.upscale(surface_anim_scale);
             rect.loc += surface_geo.loc;
 
@@ -389,9 +424,49 @@ fn render_params_for_shapes(
                 exact_clip: true,
                 material: material(shape.material),
                 tint: shape.tint,
+                report: material(shape.material)
+                    .is_some_and(|m| m.report_backdrop)
+                    .then_some(index),
             })
         })
         .collect()
+}
+
+/// The render parameters for `material` filling `geometry` with `radius` corners, drawn the
+/// way a blur shape is (see `render_params_for_shapes`). The tint is clear: the client draws
+/// its own fill over it.
+fn material_params(
+    geometry: Rectangle<f64, Logical>,
+    radius: CornerRadius,
+    scale: f64,
+    material: MaterialParams,
+) -> RenderParams {
+    let inset = 0.5 / scale;
+    let margin = 1. / scale;
+
+    let clip = Rectangle::new(
+        geometry.loc + Point::new(inset, inset),
+        (geometry.size.to_point() - Point::new(inset * 2., inset * 2.)).to_size(),
+    );
+    let radius = radius
+        .expanded_by(-inset as f32)
+        .fit_to(clip.size.w.max(0.) as f32, clip.size.h.max(0.) as f32);
+    let geometry = Rectangle::new(
+        clip.loc - Point::new(margin, margin),
+        (clip.size.to_point() + Point::new(margin * 2., margin * 2.)).to_size(),
+    );
+
+    RenderParams {
+        geometry,
+        subregion: None,
+        clip: Some((clip, radius)),
+        scale,
+        alpha: 1.,
+        exact_clip: true,
+        material: Some(material),
+        tint: [0.; 4],
+        report: None,
+    }
 }
 
 /// Per-surface background effect stored in its data map.
@@ -449,6 +524,19 @@ pub fn render_for_tile(
 
         // Blocked-out surfaces get geometry-shaped blur, like with a region.
         if let (Some(BlurArea::Shapes(shapes)), false) = (&blur_area, should_block_out) {
+            // tell the client what the readings of the backdrop taken while drawing earlier
+            // frames came to
+            {
+                let mut probe = background_effect.nonxray.probe().borrow_mut();
+                probe.keep(shapes.len() as u32);
+                if probe.waiting() {
+                    let _ = ctx.renderer.with_context(|gl| unsafe { probe.poll(gl) });
+                }
+                for (index, luminance) in probe.take_changed() {
+                    blur_shapes::send_backdrop(states, index, luminance);
+                }
+            }
+
             let mut shape_geo = surface_geo.upscale(surface_anim_scale);
             shape_geo.loc += geometry.loc;
 
@@ -479,7 +567,7 @@ pub fn render_for_tile(
             None => None,
         };
 
-        let Some(params) = render_params_for_tile(
+        let Some(mut params) = render_params_for_tile(
             geometry,
             scale,
             clip_to_geometry,
@@ -490,6 +578,15 @@ pub fn render_for_tile(
         ) else {
             return;
         };
+
+        // A rule's material is drawn like a blur shape the size of the geometry, with the
+        // rule's corners. It needs the geometry as its clip: a surface's own blur region is
+        // left to plain blur.
+        if let Some(material) = background_effect.options.material {
+            if let Some((clip, _)) = params.clip {
+                params = material_params(clip, radius, scale, material);
+            }
+        }
 
         let bounds = params.geometry;
         let xray_pos = xray_pos.offset(params.geometry.loc - geometry.loc);

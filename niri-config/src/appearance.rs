@@ -1055,7 +1055,7 @@ impl MergeWith<BlurPart> for Blur {
     }
 }
 
-#[derive(knuffel::Decode, Debug, Default, Clone, Copy, PartialEq)]
+#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
 pub struct BackgroundEffectRule {
     #[knuffel(child, unwrap(argument))]
     pub xray: Option<bool>,
@@ -1065,10 +1065,12 @@ pub struct BackgroundEffectRule {
     pub noise: Option<FloatOrInt<0, 1000>>,
     #[knuffel(child, unwrap(argument))]
     pub saturation: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub material: Option<String>,
 }
 
 /// Resolved background effect rule.
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct BackgroundEffect {
     /// Whether to render with xray effect (see through).
     ///
@@ -1087,11 +1089,15 @@ pub struct BackgroundEffect {
 
     pub noise: Option<f64>,
     pub saturation: Option<f64>,
+
+    /// The named material (`materials {}`) to draw the effect with instead of plain blur, in
+    /// the shape of the geometry. A name that isn't defined draws plain blur.
+    pub material: Option<String>,
 }
 
 impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
     fn merge_with(&mut self, part: &BackgroundEffectRule) {
-        merge_clone_opt!((self, part), xray, blur);
+        merge_clone_opt!((self, part), xray, blur, material);
 
         if let Some(x) = part.noise {
             self.noise = Some(x.0);
@@ -1145,6 +1151,15 @@ pub struct Material {
     /// Noise over the background, in place of the blur's.
     #[knuffel(child, unwrap(argument))]
     pub noise: Option<FloatOrInt<0, 1000>>,
+    /// Whether the lens and rim build up with the shape's opacity as it fades in, rather
+    /// than a finished lens fading in. On by default.
+    #[knuffel(child, unwrap(argument))]
+    pub materialize: Option<bool>,
+    /// Whether niri tells the client how bright the backdrop behind each shape is
+    /// (niri-blur-shapes-v1's `backdrop` event), for non-xray shapes. Off by default: it reads
+    /// a little back from the GPU.
+    #[knuffel(child, unwrap(argument))]
+    pub report_backdrop: Option<bool>,
 }
 
 /// A material with every value filled in.
@@ -1161,6 +1176,8 @@ pub struct MaterialParams {
     pub adaptive_tint: f32,
     pub saturation: Option<f32>,
     pub noise: Option<f32>,
+    pub materialize: bool,
+    pub report_backdrop: bool,
 }
 
 impl Material {
@@ -1179,6 +1196,8 @@ impl Material {
             adaptive_tint: unit(self.adaptive_tint, 0.),
             saturation: self.saturation.map(|v| v.0 as f32),
             noise: self.noise.map(|v| v.0 as f32),
+            materialize: self.materialize.unwrap_or(true),
+            report_backdrop: self.report_backdrop.unwrap_or(false),
         }
     }
 }

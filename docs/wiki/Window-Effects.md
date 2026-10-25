@@ -61,13 +61,39 @@ materials {
         specular 0.5      // highlight where the light hits the edge, 0-1
         tint 1            // how strongly the client's tint shows, 0-2
         adaptive-tint 0   // thicken the tint over a backdrop of similar brightness, 0-1
+        materialize true  // build the lens and rim up with the shape's opacity as it fades in
+        report-backdrop false // tell the client how bright the backdrop is behind each shape
         // saturation 1.5 // optional, in place of the blur's
         // noise 0.02     // optional, in place of the blur's
     }
 }
 ```
 
+A shape fading in with `materialize` on (the default) bends and lights the backdrop only as much as it shows, so the glass materializes rather than a finished lens fading in.
+
+With `report-backdrop` on, niri tells the client how bright the blurred backdrop behind each of that material's shapes is (version 2 of `niri-blur-shapes-v1`), so it can turn a small piece of glass light or dark with what's behind it.
+The reading is coarse: an 8×8 version of the shape's area, read back from the GPU without waiting, at most four times a second per shape, and sent only when it moves noticeably.
+It works for non-xray shapes only, and it's off by default.
+
 Changing a material reloads live.
+
+A layer or window rule can also name a material in its `background-effect`, or in the one in its `popups {}` block (fork).
+niri then draws the whole surface's (or each pop-up's) effect as that material, in the shape of its geometry and `geometry-corner-radius`, with no tint: the client draws its own fill.
+This is how a client that can't send blur shapes, such as a pop-up menu, gets the same glass as its parent.
+
+```kdl
+layer-rule {
+    match namespace="^my-shell$"
+
+    popups {
+        geometry-corner-radius 10
+        background-effect {
+            blur true
+            material "glass"
+        }
+    }
+}
+```
 
 Windows can also blur their pop-up menus using `ext-background-effect`.
 On the niri side, you can do it with a `popups` block inside [`window-rule`](./Configuration:-Window-Rules.md#popups) and [`layer-rule`](./Configuration:-Layer-Rules.md#popups).

@@ -1,6 +1,5 @@
 //! niri-blur-shapes-v1: rounded, translucent blur shapes in place of a blur region.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use niri_config::CornerRadius;
@@ -9,14 +8,14 @@ use smithay::reexports::wayland_server::{
     Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New, Resource, Weak,
 };
 use smithay::utils::{Logical, Point, Rectangle, Size};
-use smithay::wayland::compositor::{with_states, Cacheable};
+use smithay::wayland::compositor::{with_states, Cacheable, SurfaceData};
 
 use super::raw::blur_shapes::v1::server::niri_blur_shapes_manager_v1::{
     self, NiriBlurShapesManagerV1,
 };
 use super::raw::blur_shapes::v1::server::niri_blur_shapes_v1::{self, NiriBlurShapesV1};
 
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// One rounded rectangle of blur, in surface-local coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -69,9 +68,23 @@ impl BlurShapesUserData {
     }
 }
 
-/// Whether a surface has a blur shapes object.
+/// A surface's blur shapes object, if it has one.
 #[derive(Default)]
-struct BlurShapesSurfaceData(AtomicBool);
+struct BlurShapesSurfaceData(Mutex<Option<NiriBlurShapesV1>>);
+
+/// Tells the client how bright the backdrop behind shape `index` of the surface is, if its blur
+/// shapes object is new enough to hear it.
+pub fn send_backdrop(states: &SurfaceData, index: u32, luminance: f32) {
+    let Some(data) = states.data_map.get::<BlurShapesSurfaceData>() else {
+        return;
+    };
+    let guard = data.0.lock().unwrap();
+    if let Some(resource) = guard.as_ref() {
+        if resource.is_alive() && resource.version() >= 2 {
+            resource.backdrop(index, f64::from(luminance.clamp(0., 1.)));
+        }
+    }
+}
 
 impl BlurShapesManagerState {
     pub fn new<D>(display: &DisplayHandle) -> Self
@@ -155,7 +168,11 @@ where
                     let data = states
                         .data_map
                         .get_or_insert_threadsafe(BlurShapesSurfaceData::default);
-                    data.0.swap(true, Ordering::AcqRel)
+                    data.0
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .is_some_and(|resource| resource.is_alive())
                 });
 
                 if attached {
@@ -166,7 +183,13 @@ where
                     return;
                 }
 
-                data_init.init(id, BlurShapesUserData(Mutex::new(surface.downgrade())));
+                let resource =
+                    data_init.init(id, BlurShapesUserData(Mutex::new(surface.downgrade())));
+                with_states(&surface, |states| {
+                    if let Some(data) = states.data_map.get::<BlurShapesSurfaceData>() {
+                        *data.0.lock().unwrap() = Some(resource);
+                    }
+                });
             }
             niri_blur_shapes_manager_v1::Request::Destroy => (),
         }
@@ -234,7 +257,7 @@ where
             niri_blur_shapes_v1::Request::Destroy => {
                 with_states(&surface, |states| {
                     if let Some(data) = states.data_map.get::<BlurShapesSurfaceData>() {
-                        data.0.store(false, Ordering::Release);
+                        *data.0.lock().unwrap() = None;
                     }
                     let mut cached = states.cached_state.get::<BlurShapesCachedState>();
                     cached.pending().shapes = None;

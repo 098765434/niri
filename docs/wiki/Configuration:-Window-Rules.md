@@ -938,6 +938,9 @@ Override the background effect options for this window.
 - `blur`: set to `true` to enable blur behind this window, or `false` to force-disable it.
 - `noise`: amount of pixel noise added to the background (helps with color banding from blur).
 - `saturation`: color saturation of the background (`0` is desaturated, `1` is normal, `2` is 200% saturation).
+- `material` (fork): the name of a [material](./Window-Effects.md) to draw the effect with, as liquid glass in the shape of the window's geometry and `geometry-corner-radius`.
+  The window draws its own tint over it, so the material adds the lens and the lit rim.
+  It needs blur, and works in a `popups {}` block too. A surface that sets its own blur region keeps plain blur there, and a name that isn't defined draws plain blur.
 
 See the [window effects page](./Window-Effects.md) for an overview of background effects.
 

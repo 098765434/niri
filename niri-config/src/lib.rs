@@ -692,6 +692,38 @@ mod tests {
     }
 
     #[test]
+    fn parse_rule_material() {
+        let parsed = do_parse(
+            r#"
+            layer-rule {
+                background-effect {
+                    blur true
+                    material "glass"
+                }
+
+                popups {
+                    background-effect {
+                        material "glass"
+                    }
+                }
+            }
+            "#,
+        );
+        let rule = &parsed.layer_rules[0];
+        assert_eq!(rule.background_effect.material.as_deref(), Some("glass"));
+        assert_eq!(
+            rule.popups.background_effect.material.as_deref(),
+            Some("glass")
+        );
+
+        // a later rule's material replaces an earlier one's; one without keeps it
+        let mut resolved = BackgroundEffect::default();
+        resolved.merge_with(&rule.background_effect);
+        resolved.merge_with(&BackgroundEffectRule::default());
+        assert_eq!(resolved.material.as_deref(), Some("glass"));
+    }
+
+    #[test]
     fn parse() {
         let parsed = do_parse(
             r##"
@@ -1922,6 +1954,7 @@ mod tests {
                         blur: None,
                         noise: None,
                         saturation: None,
+                        material: None,
                     },
                     popups: PopupsRule {
                         opacity: None,
@@ -1931,6 +1964,7 @@ mod tests {
                             blur: None,
                             noise: None,
                             saturation: None,
+                            material: None,
                         },
                     },
                 },
@@ -1973,6 +2007,7 @@ mod tests {
                         blur: None,
                         noise: None,
                         saturation: None,
+                        material: None,
                     },
                     popups: PopupsRule {
                         opacity: None,
@@ -1982,6 +2017,7 @@ mod tests {
                             blur: None,
                             noise: None,
                             saturation: None,
+                            material: None,
                         },
                     },
                 },

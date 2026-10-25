@@ -301,7 +301,12 @@ impl XrayElement {
             Uniform::new("bg_color", self.bg_color.components()),
         ];
         if let Some(material) = &self.material {
-            uniforms.extend(glass_uniforms(material, self.tint, self.input_to_clip_geo));
+            uniforms.extend(glass_uniforms(
+                material,
+                self.tint,
+                self.input_to_clip_geo,
+                self.alpha,
+            ));
         }
         uniforms
     }

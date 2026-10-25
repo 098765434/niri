@@ -238,6 +238,9 @@ Override the background effect options for this surface.
 - `blur`: set to `true` to enable blur behind this surface, or `false` to force-disable it.
 - `noise`: amount of pixel noise added to the background (helps with color banding from blur).
 - `saturation`: color saturation of the background (`0` is desaturated, `1` is normal, `2` is 200% saturation).
+- `material` (fork): the name of a [material](./Window-Effects.md) to draw the effect with, as liquid glass in the shape of the surface's geometry and `geometry-corner-radius`.
+  The surface draws its own tint over it, so the material adds the lens and the lit rim.
+  It needs blur, and works in a `popups {}` block too. A surface that sets its own blur region keeps plain blur there, and a name that isn't defined draws plain blur.
 
 See the [window effects page](./Window-Effects.md) for an overview of background effects.
 
