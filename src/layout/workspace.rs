@@ -1078,6 +1078,10 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling.move_column_to_index(index);
     }
 
+    pub fn move_column_with_window_to_index(&mut self, window: &W::Id, index: usize) {
+        self.scrolling.move_column_with_window_to_index(window, index);
+    }
+
     pub fn move_down(&mut self) -> bool {
         if self.floating_is_active.get() {
             self.floating.move_down();

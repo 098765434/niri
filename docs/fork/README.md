@@ -10,3 +10,4 @@ Design and implementation notes for this fork's features. User-facing docs stay 
 | [mod-swipe.md](mod-swipe.md) | Mod-held three-finger window swipes | implemented |
 | [blur-shapes.md](blur-shapes.md) | `niri-blur-shapes-v1` and liquid-glass materials | implemented |
 | [workspace-mat.md](workspace-mat.md) | Backing behind the scrolling layout | draft (untracked) |
+| [column-by-window.md](column-by-window.md) | `MoveColumnToIndex` with a `window_id` | implemented |
