@@ -3,8 +3,8 @@
 Status: implemented (branch `ocbk`) · Scope: while Mod is held, three-finger touchpad swipes
 act on the focused window instead of scrolling the view or switching workspaces.
 
-User-facing docs: [Gestures → Window Swipes](./docs/wiki/Gestures.md#window-swipes) and
-[`gestures { mod-swipe }`](./docs/wiki/Configuration:-Gestures.md#mod-swipe). This document
+User-facing docs: [Gestures → Window Swipes](../wiki/Gestures.md#window-swipes) and
+[`gestures { mod-swipe }`](../wiki/Configuration:-Gestures.md#mod-swipe). This document
 covers the design and the implementation, for maintaining and tuning the feature.
 
 ## 1. Goal
