@@ -14,6 +14,7 @@ log: [maintaining.md](maintaining.md).
 | Materials | named liquid-glass looks drawn over the blur | `materials { material "…" { … } }`; `background-effect { material "…" }` in rules | [effects/materials.md](effects/materials.md) | implemented, `454d9751`, `3cde7327`, `a1a78bd0`, `78620a8c`, `7bef7001` |
 | Blur shapes | rounded, fading blur shapes, each with a material and tint | protocol `niri-blur-shapes-v1` | [effects/blur-shapes.md](effects/blur-shapes.md) | implemented, `13d945b5`, `74b623a7`, `3cde7327` |
 | Vibrancy | a subsurface blended with the backdrop (plus-lighter / plus-darker) | protocol `niri-vibrancy-v1` | [effects/vibrancy.md](effects/vibrancy.md) | implemented, `4c68634c`, `ada326f0` |
+| Effects memory | what xray buffers, blur chains and shape captures hold, built and freed when used | — | [effects/memory.md](effects/memory.md) | implemented, `0b2ab4e5` |
 | Workspace mat | a backing behind the scrolling layout that fills the gaps | `layout { mat { … } }` | [layout/workspace-mat.md](layout/workspace-mat.md) | implemented, `58528c07`, `f297cd5e`, `74d6c36d` |
 | Gaps | gaps between workspaces, and between windows in the overview | `layout { workspace-gap }`, `overview { workspace-gap window-gap }` | [layout/gaps.md](layout/gaps.md) | implemented, `dab83f82`, `34c91b6b`, `e0139bac` |
 | Desktop layer | a background layer that stays still on the wallpaper as the desktop | `layer-rule { desktop true }` | [layout/desktop-layer.md](layout/desktop-layer.md) | implemented, `871b5ee5` |
@@ -28,6 +29,7 @@ Each feature doc starts with **Usage** (config, protocol or IPC), then **Design 
 - **Effects:** liquid glass. [Materials](effects/materials.md) are the looks,
   [blur shapes](effects/blur-shapes.md) are how a client asks for them in its own shapes, and
   [vibrancy](effects/vibrancy.md) blends a client's labels with the glass under them.
+  [Memory](effects/memory.md) is what all of it holds on the GPU and when it lets go.
 - **Layout:** the scrolling layout's surroundings. The [workspace mat](layout/workspace-mat.md)
   fills the gaps, [gaps](layout/gaps.md) sets the space between workspaces and overview windows,
   and the [desktop layer](layout/desktop-layer.md) keeps widgets on the wallpaper.
