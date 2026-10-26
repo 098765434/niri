@@ -172,18 +172,26 @@ impl FramebufferEffect {
 
         let scale = shapes.first().map_or(1., |params| params.scale);
 
-        // each blur's options and the area behind its shapes, in the order they first appear
+        // each blur's options and the area behind its shapes, in the order they first
+        // appear; a lens bends the backdrop in from past the shape's edge, so the area
+        // reaches that far around it
         let mut blurs: Vec<(Option<BlurOptions>, Rectangle<f64, Logical>)> = Vec::new();
         let mut group_of = Vec::with_capacity(shapes.len());
         for params in &shapes {
             let options = blur_options.map(|b| b.for_material(params.material.as_ref()));
+            let reach = params
+                .material
+                .map_or(0., |m| f64::from(m.refraction.ceil()));
+            let mut area = params.geometry;
+            area.loc -= (reach, reach).into();
+            area.size += (2. * reach, 2. * reach).into();
             match blurs.iter().position(|(o, _)| *o == options) {
                 Some(at) => {
-                    blurs[at].1 = blurs[at].1.merge(params.geometry);
+                    blurs[at].1 = blurs[at].1.merge(area);
                     group_of.push(at);
                 }
                 None => {
-                    blurs.push((options, params.geometry));
+                    blurs.push((options, area));
                     group_of.push(blurs.len() - 1);
                 }
             }

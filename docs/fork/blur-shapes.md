@@ -62,10 +62,14 @@ looks that shapes pick by id. They are drawn by
 `src/render_helpers/shaders/glass.frag`:
 
 - SDF-normal refraction at the edge, with red/blue parting (`dispersion`).
-- The lip magnifies inwards. It draws the backdrop from further inside, like a
-  thick lens, instead of sampling past the edge (which showed a band of
-  whatever lay outside, plus a fringe) (`74b623a7`).
-- A rim lit from `light-angle`, with a far-edge catch and a specular highlight.
+- The lip bends the backdrop in from past the edge, as the recovered macOS 26
+  glass shaders do (sampling outward along the SDF normal). `74b623a7` had it
+  magnify inwards because the capture stopped at the shape's edge; now
+  `render_shapes` grows each blur group's capture by the material's
+  `refraction`, so the rim shows real backdrop.
+- A rim hairline lit from `light-angle`, with a far-edge catch (`far-rim`, Apple's
+  opposite fill light), a specular highlight, and a separate `glow` over the
+  bevel's lit sides (a quarter of `rim` unless set).
 - With `tone` below 1, the backdrop's brightness is first squeezed toward the
   tint's side (dark tint: `c·tone`; light tint: `1 − (1 − c)·tone`), as Apple's
   darken/lighten layers do, so thin tints stay readable.

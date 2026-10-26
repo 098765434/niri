@@ -146,7 +146,12 @@ pub fn glass_uniforms(
         ),
         Uniform::new(
             "glass_tint_params",
-            [material.tint, material.adaptive_tint, material.tone],
+            [
+                material.tint,
+                material.adaptive_tint,
+                material.tone,
+                material.glow * grown,
+            ],
         ),
     ]
 }
