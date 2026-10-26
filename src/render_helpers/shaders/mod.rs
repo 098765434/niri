@@ -141,6 +141,7 @@ impl Shaders {
                     UniformName::new("input_to_geo", UniformType::Matrix3x3),
                     UniformName::new("geo_to_input", UniformType::Matrix3x3),
                     UniformName::new("glass_tint", UniformType::_4f),
+                    UniformName::new("glass_fade", UniformType::_4f),
                     UniformName::new("glass_shape", UniformType::_4f),
                     UniformName::new("glass_light", UniformType::_4f),
                     UniformName::new("glass_tint_params", UniformType::_4f),

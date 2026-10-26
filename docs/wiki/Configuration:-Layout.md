@@ -592,8 +592,8 @@ layout {
 - `color`: the mat colour. With `material`, it is the glass tint instead, for example `"#000000c0"` for dark smoked glass.
 - `overview`: `"fade"` (the default) fades the mat out as the overview opens, `"keep"` keeps it.
 - `column-fill`: how far down the mat goes under a column whose windows don't fill the height. `"full"` (the default) covers the full height under every column. `"tiles"` stops one gap below the column's last window, so the wallpaper shows under short columns. A column whose windows fill the working area still reaches the bottom of the screen.
-- `ends`: how the mat ends one gap past the outermost columns. `"hard"` (the default) is a sharp edge, `"soft"` adds a fade into the wallpaper over `soft-end-length` logical pixels.
-- `material`: draw the mat as liquid glass with this named [material](./Window-Effects.md) from `materials {}`. The glass is drawn from the blurred wallpaper, using `blur {}`'s settings unless the material sets its own. An unknown name draws a solid mat. Glass draws hard ends for now, even with `ends "soft"`.
+- `ends`: how the mat ends at the outermost columns. `"hard"` (the default) is a sharp edge one gap past them. `"soft"` fades the mat out over the outermost columns' last `soft-end-length` logical pixels, so it is fully transparent by their outer edges.
+- `material`: draw the mat as liquid glass with this named [material](./Window-Effects.md) from `materials {}`. The glass is drawn from the blurred wallpaper, using `blur {}`'s settings unless the material sets its own. An unknown name draws a solid mat.
 
 Windows keep their `geometry-corner-radius` and `clip-to-geometry`; the mat fills around the rounded corners.
 

@@ -102,7 +102,9 @@ column, sharing physical-pixel boundaries so there are no seams or holes while c
 
 - **Surface:** config `layout { mat { color, overview, column-fill, ends, soft-end-length, material } }`.
 - **Files:** `niri-config/src/{layout,lib}.rs`, `src/layout/{mat,mod,scrolling,workspace,monitor}.rs`,
-  `src/render_helpers/background_effect.rs`, `docs/wiki/Configuration:-Layout.md`.
+  `src/render_helpers/{background_effect,xray,framebuffer_effect}.rs`,
+  `src/render_helpers/shaders/{glass.frag,mod.rs}` (`glass_fade`, for soft glass ends),
+  `docs/wiki/Configuration:-Layout.md`.
 - **Review it:** `git log --oneline -- src/layout/mat.rs`
 
 ## Fixes and housekeeping

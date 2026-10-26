@@ -39,6 +39,10 @@ uniform mat3 geo_to_input;
 
 // Premultiplied colour laid over the background.
 uniform vec4 glass_tint;
+// x ranges in geometry pixels to fade in over from the left edge and out over
+// to the right edge: left start, left end, right start, right end. An empty
+// range doesn't fade.
+uniform vec4 glass_fade;
 // refraction (px), bevel (px), dispersion, rim
 uniform vec4 glass_shape;
 // light direction (x, y, towards the light), far rim, specular
@@ -147,6 +151,12 @@ void main() {
     }
 
     color = color * alpha;
+
+    float x = coords_geo.x * geo_size.x;
+    if (glass_fade.y > glass_fade.x)
+        color *= clamp((x - glass_fade.x) / (glass_fade.y - glass_fade.x), 0.0, 1.0);
+    if (glass_fade.w > glass_fade.z)
+        color *= clamp((glass_fade.w - x) / (glass_fade.w - glass_fade.z), 0.0, 1.0);
 
 #if defined(DEBUG_FLAGS)
     if (tint == 1.0)

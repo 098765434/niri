@@ -80,6 +80,7 @@ pub struct XrayElement {
     alpha: f32,
     material: Option<MaterialParams>,
     tint: [f32; 4],
+    fade: [f32; 4],
     blur: bool,
     /// The blur of the material, where it has its own; else the buffer's.
     blur_options: Option<BlurOptions>,
@@ -244,6 +245,7 @@ impl Xray {
                         alpha: params.alpha,
                         material,
                         tint: params.tint,
+                        fade: params.fade,
                         blur,
                         blur_options: options,
                         noise,
@@ -304,6 +306,7 @@ impl Xray {
                 alpha: params.alpha,
                 material,
                 tint: params.tint,
+                fade: params.fade,
                 blur,
                 blur_options: options,
                 noise,
@@ -333,6 +336,7 @@ impl XrayElement {
                 self.tint,
                 self.input_to_clip_geo,
                 self.alpha,
+                self.fade,
             ));
         }
         uniforms

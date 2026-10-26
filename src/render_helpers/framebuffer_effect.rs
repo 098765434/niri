@@ -247,6 +247,7 @@ impl FramebufferEffect {
                     exact_clip: true,
                     material: None,
                     tint: [0.; 4],
+                    fade: [0.; 4],
                     report: None,
                 },
                 options,
@@ -850,7 +851,9 @@ impl RenderElement<GlesRenderer> for FramebufferSampleElement {
                     transform,
                     texture_region,
                 );
-                uniforms.extend(glass_uniforms(material, self.tint, matrix, self.alpha));
+                uniforms.extend(glass_uniforms(
+                    material, self.tint, matrix, self.alpha, [0.; 4],
+                ));
             }
             uniforms
         });

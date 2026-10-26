@@ -30,12 +30,12 @@ pub struct MatColumn {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatGeometry {
-    /// The bounding rectangle of the mat, without soft ends.
+    /// The bounding rectangle of the mat, soft ends included.
     pub slab: Rectangle<f64, Logical>,
-    /// A partition of the slab's x range, sharing boundaries; one cell when the cells would all
-    /// be the full height.
+    /// A partition of the slab's x range between the soft ends, sharing boundaries; one cell
+    /// when the cells would all be the full height.
     pub cells: Vec<Rectangle<f64, Logical>>,
-    /// The fades just outside the slab's left and right edges.
+    /// The fades along the inside of the slab's left and right edges.
     pub soft_ends: Option<[Rectangle<f64, Logical>; 2]>,
 }
 
@@ -60,10 +60,15 @@ pub fn mat_geometry(
     let mut columns = columns.to_vec();
     columns.sort_by(|a, b| a.x.total_cmp(&b.x));
 
+    // Hard ends stop one gap past the outer columns. Soft ends fade out over the outer columns'
+    // last `soft-end-length`, so the mat is transparent by their outer edges.
+    let soft = config.ends == MatEnds::Soft;
+    let outer = if soft { 0. } else { gap };
+
     // Every boundary is rounded once and used by both cells beside it, so the cells tile the
     // slab with no seams at fractional scales and no holes while columns move.
     let mut bounds = Vec::with_capacity(columns.len() + 1);
-    bounds.push(round(columns[0].x - gap));
+    bounds.push(round(columns[0].x - outer));
     for pair in columns.windows(2) {
         let mid = (pair[0].x + pair[0].width + pair[1].x) / 2.;
         let prev = *bounds.last().unwrap();
@@ -74,7 +79,7 @@ pub fn mat_geometry(
         .map(|col| col.x + col.width)
         .fold(f64::NEG_INFINITY, f64::max);
     let prev = *bounds.last().unwrap();
-    bounds.push(f64::max(prev, round(right + gap)));
+    bounds.push(f64::max(prev, round(right + outer)));
 
     let view_h = view_size.h;
     let height = |col: &MatColumn| match config.column_fill {
@@ -94,10 +99,26 @@ pub fn mat_geometry(
     let slab_w = bounds[bounds.len() - 1] - slab_x;
     let slab = Rectangle::new(Point::from((slab_x, 0.)), Size::from((slab_w, view_h)));
 
+    // The fades take at most half the slab each.
+    let length = if soft {
+        let half = (slab_w / 2. * scale).floor() / scale;
+        round(config.soft_end_length).min(half)
+    } else {
+        0.
+    };
+    let inner_left = slab_x + length;
+    let inner_right = slab_x + slab_w - length;
+
     let heights: Vec<f64> = columns.iter().map(height).collect();
     let cells = if heights.iter().all(|h| *h == view_h) {
-        vec![slab]
+        let size = Size::from((inner_right - inner_left, view_h));
+        vec![Rectangle::new(Point::from((inner_left, 0.)), size)]
     } else {
+        // The cells leave room for the fades, which keep the end columns' heights.
+        let bounds: Vec<f64> = bounds
+            .iter()
+            .map(|x| x.clamp(inner_left, inner_right))
+            .collect();
         heights
             .iter()
             .enumerate()
@@ -108,17 +129,13 @@ pub fn mat_geometry(
             .collect()
     };
 
-    let length = round(config.soft_end_length);
-    let soft_ends = (config.ends == MatEnds::Soft && length > 0.).then(|| {
+    let soft_ends = (length > 0.).then(|| {
         let left_h = heights[0];
         let right_h = heights[heights.len() - 1];
         [
+            Rectangle::new(Point::from((slab_x, 0.)), Size::from((length, left_h))),
             Rectangle::new(
-                Point::from((slab_x - length, 0.)),
-                Size::from((length, left_h)),
-            ),
-            Rectangle::new(
-                Point::from((slab_x + slab_w, 0.)),
+                Point::from((inner_right, 0.)),
                 Size::from((length, right_h)),
             ),
         ]
@@ -140,7 +157,6 @@ pub struct Mat {
     material: Option<niri_config::MaterialParams>,
     /// The material name last warned about, to warn once.
     warned_material: Option<String>,
-    warned_soft_glass: bool,
     scale: f64,
 }
 
@@ -160,7 +176,6 @@ impl Mat {
             color: Color::default(),
             material: None,
             warned_material: None,
-            warned_soft_glass: false,
             scale: 1.,
         }
     }
@@ -174,7 +189,6 @@ impl Mat {
         working_bottom: f64,
         scale: f64,
     ) {
-        self.geometry = mat_geometry(columns, config, gap, view_size, working_bottom, scale);
         self.color = config.color;
         self.scale = scale;
 
@@ -188,10 +202,7 @@ impl Mat {
             material
         });
 
-        if self.material.is_some() && config.ends == MatEnds::Soft && !self.warned_soft_glass {
-            info!("mat: glass draws hard ends for now");
-            self.warned_soft_glass = true;
-        }
+        self.geometry = mat_geometry(columns, config, gap, view_size, working_bottom, scale);
 
         let Some(geo) = &self.geometry else {
             self.buffers.clear();
@@ -221,9 +232,18 @@ impl Mat {
         }
 
         if let (Some(material), Some(xray)) = (self.material, ctx.xray) {
+            // The soft ends fade across the slab's outer edges, in the slab's coordinates.
+            let fade = geo.soft_ends.map_or([0.; 4], |[left, right]| {
+                let w = geo.slab.size.w as f32;
+                let (l, r) = (left.size.w as f32, right.size.w as f32);
+                [0., l, w - r, w]
+            });
+            let ends = geo.soft_ends.iter().flatten();
             let areas = geo
                 .cells
                 .iter()
+                .chain(ends)
+                .filter(|area| !area.is_empty())
                 .map(|cell| {
                     let params = RenderParams {
                         geometry: *cell,
@@ -235,6 +255,7 @@ impl Mat {
                         exact_clip: false,
                         material: Some(material),
                         tint: self.color.to_array_premul(),
+                        fade,
                         report: None,
                     };
                     (params, xray_pos.offset(cell.loc))
@@ -322,12 +343,17 @@ mod tests {
         mat_geometry(columns, config, 8., view(), 1080., scale).unwrap()
     }
 
-    /// Checks that the cells partition the slab's x range exactly.
+    /// Checks that the soft ends and cells partition the slab's x range exactly.
     #[track_caller]
     fn assert_partition(geo: &MatGeometry, scale: f64) {
         let slab = geo.slab;
         let mut x = slab.loc.x;
-        for cell in &geo.cells {
+        let mut cells = geo.cells.clone();
+        if let Some([left, right]) = geo.soft_ends {
+            cells.insert(0, left);
+            cells.push(right);
+        }
+        for cell in &cells {
             assert_eq!(cell.loc.x, x, "cell starts where the last ended");
             assert!(cell.size.w >= 0.);
             assert_eq!(cell.loc.y, 0.);
@@ -414,12 +440,29 @@ mod tests {
     fn soft_ends() {
         let soft = config(MatColumnFill::Tiles, MatEnds::Soft);
         let columns = [col(8., 400., 500.), col(416., 400., 700.)];
-        let geo = geo(&columns, &soft, 1.);
-        let [left, right] = geo.soft_ends.unwrap();
-        let slab = geo.slab;
-        assert_eq!(left.loc.x + left.size.w, slab.loc.x);
-        assert_eq!(right.loc.x, slab.loc.x + slab.size.w);
+        let soft_geo = geo(&columns, &soft, 1.);
+        let [left, right] = soft_geo.soft_ends.unwrap();
+        // transparent by the outer columns' edges: no outer gap
+        assert_eq!(soft_geo.slab.loc.x, 8.);
+        assert_eq!(soft_geo.slab.loc.x + soft_geo.slab.size.w, 816.);
+        assert_eq!(left.loc.x, 8.);
+        assert_eq!(right.loc.x + right.size.w, 816.);
         assert_eq!((left.size.w, right.size.w), (96., 96.));
         assert_eq!((left.size.h, right.size.h), (508., 708.));
+        for scale in [1., 1.25, 1.5] {
+            assert_partition(&geo(&columns, &soft, scale), scale);
+        }
+
+        // with full fill, one cell between the fades
+        let full = config(MatColumnFill::Full, MatEnds::Soft);
+        let geo_full = geo(&columns, &full, 1.);
+        assert_eq!(geo_full.cells.len(), 1);
+        assert_partition(&geo_full, 1.);
+
+        // a narrow strip: the fades meet in the middle
+        let narrow = geo(&[col(8., 100., 1072.)], &full, 1.);
+        let [left, right] = narrow.soft_ends.unwrap();
+        assert_eq!((left.size.w, right.size.w), (50., 50.));
+        assert_eq!(narrow.cells[0].size.w, 0.);
     }
 }

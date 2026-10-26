@@ -1,6 +1,6 @@
 # Spec: Workspace mat for a niri fork
 
-Status: implemented (solid and glass; glass soft ends pending) · Scope: a sharp-cornered backing painted behind the scrolling layout's
+Status: implemented · Scope: a sharp-cornered backing painted behind the scrolling layout's
 windows, so the gaps between and around windows read as one clean surface in normal mode
 while the wallpaper stays visible wherever there are no windows. The mat is a solid colour
 by default, or optionally liquid glass. It fades out as the overview opens, which reveals
@@ -80,8 +80,10 @@ A free function so it can be unit tested. Inputs: each column's render x positio
 
   Each cell's height comes from `column-fill` (§3.3). With `"full"`, every cell is the full
   height and the cells merge into one rectangle: the slab.
-- **Soft ends** (`ends "soft"`): two extra rectangles of width `soft-end-length` just outside
-  the slab's left and right edges, each with its column's cell height.
+- **Soft ends** (`ends "soft"`): the slab stops at the outermost columns' outer edges (no outer
+  gap), and two rectangles of width `soft-end-length` (at most half the slab each) run along
+  the inside of its left and right edges, each with its column's cell height. The cells
+  partition the slab between them.
 - `None` when there are no columns, or when the mat is off.
 
 `ColumnData::width` is refreshed from `Column::width()`, which reads `Tile::tile_size()`: the
@@ -114,7 +116,7 @@ buffers. With `column-fill "full"` there is one buffer.
 **Solid mat (default).** One `SolidColorRenderElement` per cell. Each soft end is a
 `BorderRenderElement` with `border_width 0.` (a filled rectangle, as `tile.rs` already uses
 during the fullscreen animation). It runs a horizontal gradient from the mat colour to the same
-colour at alpha 0, pointing away from the slab.
+colour at alpha 0 at the slab's outer edge.
 
 **Glass mat (`material`).** Behind the mat there is only the wallpaper and the workspace
 background, which is exactly what this fork's xray path already holds blurred once per
@@ -244,14 +246,17 @@ sharp edge. Wallpaper shows past the ends of the strip: to the right when the st
 narrower than the screen, and on either side while scrolling to the ends. The most literal
 reading of "wallpaper where the workspace isn't covered".
 
-**`"soft"`.** The same slab, so the outer gap itself stays fully covered, plus a fade over
-`soft-end-length` beyond it. The mat dissolves into the wallpaper instead of ending as a slab,
-and it softens the open/close pops (§3.2).
+**`"soft"`.** The mat fades out over the outermost columns' last `soft-end-length`, so it's
+fully transparent by their outer edges, and the outer gap shows wallpaper. The fade runs
+under the end windows, so it shows where they don't cover: behind the bar, between stacked
+tiles, around rounded corners and under a short column. The mat dissolves into the wallpaper
+instead of ending as a slab, and it softens the open/close pops (§3.2).
 
 - **Solid:** a gradient `BorderRenderElement` per end (§2.3). No new shader.
-- **Glass:** the glass shader takes one alpha per shape, so a glass soft end needs a small
-  `glass.frag` change: an alpha ramp along x over the fade length, passed as a uniform. Until
-  that lands, glass with `ends "soft"` draws hard ends and logs it once.
+- **Glass:** one xray area per soft end beside the cells, all clipped to the slab. The glass
+  shader multiplies its alpha by a ramp along x, the `glass_fade` uniform
+  (`RenderParams::fade`: left start, left end, right start, right end in clip pixels; empty
+  ranges don't fade, so other glass users are unchanged).
 
 Considered and dropped for now: covering the full view width whenever the workspace has a
 column, and snapping a strip end to the view edge when it's close. Either can come back as
@@ -267,7 +272,8 @@ another `ends` value if live use shows a need.
   - columns with move offsets that overlap or separate still partition with no holes;
   - full view height regardless of working area with `"full"`; skyline heights with `"tiles"`,
     and a full-height column reaching `view_size.h`;
-  - soft ends sit just outside the slab with the neighbouring cell's height.
+  - soft ends sit inside the slab's outer edges, which are the outer columns' edges, with the
+    neighbouring cell's height, and with the cells partition the slab;
 - **Config:** parse test for the `mat` block (every key and value) and merge with `MatPart`;
   unknown material falls back to solid; default config unchanged.
 - **Live:** run as nested niri (`cargo run` in a winit window), then on the real session via the
@@ -285,7 +291,6 @@ another `ends` value if live use shows a need.
 
 - Strip-end pops on open/close, softened but not removed by `ends "soft"` (§3.2).
 - An xray-blurred bar shows wallpaper rather than a solid mat (§3.4).
-- Glass with `ends "soft"` needs a `glass.frag` change before it works (§4).
 - Glass with `column-fill "tiles"` has no rim on the cut bottom of short cells (§3.3).
 - One mat style for the whole layout. No per-output or per-workspace setting yet.
 - Tiles in tabbed columns are fine (one column, one width). Tab indicators drawn outside
@@ -302,5 +307,6 @@ hold different mats per workspace, and IPC-driven drawing would trail the compos
 scrolling by at least a frame.
 
 Touched files: `niri-config/src/layout.rs`, `src/layout/{mat,mod,scrolling,workspace,monitor}.rs`,
-`src/render_helpers/shaders/glass.frag` (soft glass ends only),
+`src/render_helpers/{background_effect,xray,framebuffer_effect}.rs` and
+`src/render_helpers/shaders/{glass.frag,mod.rs}` (soft glass ends),
 `docs/wiki/Configuration:-Layout.md`, `FORK.md`.
