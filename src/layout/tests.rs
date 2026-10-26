@@ -3983,7 +3983,7 @@ prop_compose! {
         center_focused_column in prop::option::of(arbitrary_center_focused_column()),
         always_center_single_column in prop::option::of(any::<bool>().prop_map(Flag)),
         empty_workspace_above_first in prop::option::of(any::<bool>().prop_map(Flag)),
-        workspace_gap in prop::option::of(arbitrary_spacing().prop_map(FloatOrInt)),
+        workspace_gap in prop::option::of(arbitrary_spacing_neg().prop_map(FloatOrInt)),
     ) -> niri_config::LayoutPart {
         niri_config::LayoutPart {
             gaps,
@@ -4254,10 +4254,16 @@ fn workspace_gap_in_normal_view_and_overview() {
     // set: exactly the configured gaps
     options.layout.workspace_gap = Some(8.);
     options.overview.workspace_gap = Some(24.);
-    let mut layout = check_ops_with_options(options, ops);
+    let mut layout = check_ops_with_options(options, ops.clone());
     assert_eq!(first_workspace_gap(&layout), 8.);
     check_ops_on_layout(&mut layout, [Op::ToggleOverview, Op::CompleteAnimations]);
     assert_eq!(first_workspace_gap(&layout), 24.);
+
+    // negative: the workspaces overlap in the normal view
+    let mut options = Options::default();
+    options.layout.workspace_gap = Some(-8.);
+    let layout = check_ops_with_options(options, ops);
+    assert_eq!(first_workspace_gap(&layout), -8.);
 }
 
 #[test]

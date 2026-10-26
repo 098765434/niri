@@ -122,12 +122,14 @@ layout {
 Set the space between workspaces in the normal view, in logical pixels, visible while switching workspaces.
 By default it is 10% of the output height.
 
+The space is measured between the parts of the workspaces outside bars and other layer-shell exclusive zones, so a bar's zone doesn't show as a band between workspaces while switching.
+`0` makes one workspace's content meet the next one's, and negative values overlap them further: with `gaps 8`, `workspace-gap -8` leaves the same 8 pixels between the windows of two workspaces as between two columns.
+
 The space grows or shrinks smoothly to the overview's own [`workspace-gap`](./Configuration:-Miscellaneous.md#workspace-gap) as the overview opens.
 
 ```kdl
 layout {
-    // The same as the gaps between windows.
-    workspace-gap 8
+    workspace-gap 0
 }
 ```
 

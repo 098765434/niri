@@ -1152,7 +1152,8 @@ impl<W: LayoutElement> Monitor<W> {
                     let gap = self.workspace_gap(zoom);
 
                     let hint_gap = round_logical_in_physical(scale, gap * 0.1);
-                    let hint_height = gap - hint_gap * 2.;
+                    // The gap can be small or overlap in the normal view.
+                    let hint_height = (gap - hint_gap * 2.).max(0.);
 
                     let next_ws_geo = self.workspaces_render_geo().nth(ws_idx).unwrap();
                     let hint_width = round_logical_in_physical(scale, next_ws_geo.size.w * 0.75);
@@ -1372,7 +1373,15 @@ impl<W: LayoutElement> Monitor<W> {
 
         // Unset, these give the stock 10% of the height, scaled with the zoom.
         let stock = self.view_size.h * 0.1;
-        let normal = self.options.layout.workspace_gap.unwrap_or(stock);
+
+        // A set normal-view gap is between the areas outside the bars' exclusive zones, so the
+        // zones don't show as a band between workspaces while switching: the workspaces overlap
+        // by them. It can be negative to overlap further.
+        let reserved = self.view_size.h - self.working_area.size.h;
+        let normal = match self.options.layout.workspace_gap {
+            Some(gap) => (gap - reserved).max(-self.view_size.h / 2.),
+            None => stock,
+        };
         let overview = self
             .options
             .overview
@@ -1380,7 +1389,11 @@ impl<W: LayoutElement> Monitor<W> {
             .unwrap_or(stock * overview_zoom);
 
         let gap = normal + (overview - normal) * t;
-        round_logical_in_physical_max1(scale, gap)
+        if gap > 0. {
+            round_logical_in_physical_max1(scale, gap)
+        } else {
+            round_logical_in_physical(scale, gap)
+        }
     }
 
     fn workspace_size_with_gap(&self, zoom: f64) -> Size<f64, Logical> {
