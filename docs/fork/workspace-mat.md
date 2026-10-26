@@ -1,6 +1,6 @@
 # Spec: Workspace mat for a niri fork
 
-Status: draft · Scope: a sharp-cornered backing painted behind the scrolling layout's
+Status: implemented (solid and glass; glass soft ends pending) · Scope: a sharp-cornered backing painted behind the scrolling layout's
 windows, so the gaps between and around windows read as one clean surface in normal mode
 while the wallpaper stays visible wherever there are no windows. The mat is a solid colour
 by default, or optionally liquid glass. It fades out as the overview opens, which reveals
@@ -84,9 +84,12 @@ A free function so it can be unit tested. Inputs: each column's render x positio
   the slab's left and right edges, each with its column's cell height.
 - `None` when there are no columns, or when the mat is off.
 
-`ColumnData::width` is refreshed from `Column::width()`, which reads tile sizes. **Verify**
-that during resize animations these are the animated sizes, so the mat edge follows the
-window edge instead of jumping to the target size.
+`ColumnData::width` is refreshed from `Column::width()`, which reads `Tile::tile_size()`: the
+*target* size, not the animated one. So the mat measures each column itself
+(`Column::mat_extent`): the union of its visible tiles at `tile_off + render_offset()` with
+`animated_tile_size()`, plus the tab indicator area. The mat edge follows the window edge
+through resize animations. With `column-fill "tiles"`, a column counts as full-height when its
+tiles reach the working area's bottom, and its cell then runs to the view bottom.
 
 ### 2.2 State — `Mat` on `ScrollingSpace`
 
@@ -165,7 +168,8 @@ materials {
 }
 ```
 
-- **Off by default**, so stock configs render exactly as before.
+- **Off by default**, so stock configs render exactly as before. Writing a `mat {}` block turns
+  it on (no `on` needed, unlike `border`); `off` inside it turns it off again.
 - With `material` set, `color` is the glass tint, e.g. `"#000000c0"` for dark smoked glass.
   An unknown material name logs a warning and draws the solid mat.
 - Live-reloads like the rest of `layout`. Material changes already reach the shader through
@@ -188,7 +192,7 @@ its alpha goes to the xray element.
 |-------|---------------|
 | Horizontal scroll (`view_offset`) | follows exactly, same frame as the tiles |
 | Column move / swap | cells keep sharing boundaries. No holes, no seams |
-| Column / window resize | edge follows the animated width (verify, §2.1) |
+| Column / window resize | edge follows the animated width (§2.1) |
 | Window open at a strip end | mat extends **at once** to the new column's width, before the window's open animation. With `ends "hard"` that's a mat block appearing over wallpaper. `"soft"` makes it gentler |
 | Last window of a strip-end column closes | mat shrinks at once. The closing window animates over wallpaper |
 | Fullscreen / maximized column | covered by the tile, so the mat doesn't matter |

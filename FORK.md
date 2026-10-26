@@ -23,6 +23,7 @@ stock upstream; the fork is a thin series of commits on top of a tagged release.
 | [Mod-held window swipes](#mod-held-three-finger-window-swipes) | feature | `f4367f88`, `4177c74f` | [design](docs/fork/mod-swipe.md), [wiki](docs/wiki/Gestures.md#window-swipes) | maybe — behind a config switch |
 | [Blur shapes + glass materials](#rounded-fading-blur-shapes-and-liquid-glass) | feature | `13d945b5`, `454d9751`, `74b623a7`, `3cde7327` | [design](docs/fork/blur-shapes.md), [wiki](docs/wiki/Window-Effects.md) | no as-is — private protocol; GPL-3.0 shader lineage |
 | Vibrancy (`niri-vibrancy-v1`) | feature | (this branch) | [design](docs/fork/vibrancy.md) | no as-is: private protocol |
+| [Workspace mat](#workspace-mat) | feature | (this branch) | [design](docs/fork/workspace-mat.md), [wiki](docs/wiki/Configuration:-Layout.md#mat) | maybe: plain config, no protocol |
 | [`active_column_idx` build fix](#fixes-and-housekeeping) | fix | `9d5bf9fc` | — | n/a (fixes the fork's own IPC commit) |
 | [Fork docs and housekeeping](#fixes-and-housekeeping) | internal | `9366e512`, `c5b8c69d`, `8fd4e23e`, `b414445c`, `6d9306a7`, `6baa66e5` | this file | no |
 
@@ -90,6 +91,20 @@ surfaces that can't send shapes, such as pop-ups.
 - **Credits:** the shader follows kwin-effects-glass and Niri-glass (both GPL-3.0).
 - **Review it:** `git show 13d945b5 454d9751 74b623a7 3cde7327`
 
+### Workspace mat
+
+A sharp-cornered backing painted behind the scrolling layout's tiles. It fills the gaps, the area
+behind exclusive-zone bars and the corners outside rounded windows, and fades out as the overview
+opens, so the gaps turn into wallpaper with no change to the layout. It replaces the `gaps 0`
+plus black `border` look. It's solid by default, or liquid glass from the xray buffer with a named
+material. It only reads the geometry the scrolling layout already has each frame: one cell per
+column, sharing physical-pixel boundaries so there are no seams or holes while columns move.
+
+- **Surface:** config `layout { mat { color, overview, column-fill, ends, soft-end-length, material } }`.
+- **Files:** `niri-config/src/{layout,lib}.rs`, `src/layout/{mat,mod,scrolling,workspace,monitor}.rs`,
+  `src/render_helpers/background_effect.rs`, `docs/wiki/Configuration:-Layout.md`.
+- **Review it:** `git log --oneline -- src/layout/mat.rs`
+
 ## Fixes and housekeeping
 
 - `9d5bf9fc` **Fix duplicate `active_column_idx`**: the IPC commit added a second
@@ -104,7 +119,6 @@ surfaces that can't send shapes, such as pop-ups.
 | Work | Where | Status |
 |---|---|---|
 | **Pinned columns**: a column docked to a screen edge, with its own rail, outside the scroll math; actions `pin-column`, `unpin-column`, `toggle-column-pinned`, `focus-pinned` | branch `pinned-columns` (`99562604`, pushed), spec `niri-pinned-columns-spec.md` on that branch | compositor core done with tests; overview drop target, shell UI and cross-workspace pins deferred; not merged into `ocbk` |
-| **Workspace mat**: a solid or glass backing behind the scrolling layout that fades out in the overview | [`docs/fork/workspace-mat.md`](docs/fork/workspace-mat.md) (untracked) | draft spec, no code |
 | **`MoveColumnToIndex` by window**: an optional `window_id` that moves that window's column (on whichever workspace it's on) without changing the active column or the focus, for amane-shell's dock drag (`Layout::move_column_with_window_to_index`, config action `MoveColumnToIndexById`) | [`docs/fork/column-by-window.md`](docs/fork/column-by-window.md); `ocbk` | done with a layout test and a proptest op; stock niri ignores the field and moves the focused column |
 
 The `pinned-columns` branch predates the move of the fork docs into `docs/fork/`. Expect a

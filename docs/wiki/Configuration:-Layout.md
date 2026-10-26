@@ -561,3 +561,42 @@ layout {
 ```
 
 You can also set the color per-output [in the output config](./Configuration:-Outputs.md#layout-config-overrides).
+
+### `mat`
+
+<sup>Fork</sup>
+
+Paint a backing behind the scrolling layout's windows. It fills the gaps between and around the columns, the area behind exclusive-zone bars, and the corners outside rounded windows, so in normal mode the layout reads as one clean surface.
+Past the ends of the strip and on empty workspaces, the wallpaper stays visible.
+As the overview opens, the mat fades out, showing the same gaps over the wallpaper, with no change to the layout.
+
+Floating windows get no mat.
+Writing a `mat {}` block turns it on; `off` turns it off again.
+
+```kdl
+layout {
+    gaps 8
+
+    mat {
+        // off
+        color "#000000"
+        overview "fade"
+        column-fill "full"
+        ends "hard"
+        soft-end-length 96
+        // material "smoke"
+    }
+}
+```
+
+- `color`: the mat colour. With `material`, it is the glass tint instead, for example `"#000000c0"` for dark smoked glass.
+- `overview`: `"fade"` (the default) fades the mat out as the overview opens, `"keep"` keeps it.
+- `column-fill`: how far down the mat goes under a column whose windows don't fill the height. `"full"` (the default) covers the full height under every column. `"tiles"` stops one gap below the column's last window, so the wallpaper shows under short columns. A column whose windows fill the working area still reaches the bottom of the screen.
+- `ends`: how the mat ends one gap past the outermost columns. `"hard"` (the default) is a sharp edge, `"soft"` adds a fade into the wallpaper over `soft-end-length` logical pixels.
+- `material`: draw the mat as liquid glass with this named [material](./Window-Effects.md) from `materials {}`. The glass is drawn from the blurred wallpaper, using `blur {}`'s settings unless the material sets its own. An unknown name draws a solid mat. Glass draws hard ends for now, even with `ends "soft"`.
+
+Windows keep their `geometry-corner-radius` and `clip-to-geometry`; the mat fills around the rounded corners.
+
+> [!NOTE]
+> Layer surfaces that blur with xray (the default for layer-rule blur) blur the wallpaper, not the mat, even where the mat covers the area behind them.
+> To have a translucent bar sit on a solid mat, set `xray false` in its layer rule's `background-effect`.
