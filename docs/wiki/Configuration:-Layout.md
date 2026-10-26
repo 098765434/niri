@@ -115,6 +115,22 @@ layout {
 }
 ```
 
+### `workspace-gap`
+
+<sup>Fork</sup>
+
+Set the space between workspaces in the normal view, in logical pixels, visible while switching workspaces.
+By default it is 10% of the output height.
+
+The space grows or shrinks smoothly to the overview's own [`workspace-gap`](./Configuration:-Miscellaneous.md#workspace-gap) as the overview opens.
+
+```kdl
+layout {
+    // The same as the gaps between windows.
+    workspace-gap 8
+}
+```
+
 ### `center-focused-column`
 
 When to center a column when changing focus.

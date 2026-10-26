@@ -22,6 +22,8 @@ pub struct Layout {
     pub empty_workspace_above_first: bool,
     pub default_column_display: ColumnDisplay,
     pub gaps: f64,
+    /// Space between workspaces in the normal view, on screen; `None` for 10% of the height.
+    pub workspace_gap: Option<f64>,
     pub struts: Struts,
     pub background_color: Color,
     pub mat: Mat,
@@ -46,6 +48,7 @@ impl Default for Layout {
             empty_workspace_above_first: false,
             default_column_display: ColumnDisplay::Normal,
             gaps: 16.,
+            workspace_gap: None,
             struts: Struts::default(),
             preset_window_heights: vec![
                 PresetSize::Proportion(1. / 3.),
@@ -82,6 +85,10 @@ impl MergeWith<LayoutPart> for Layout {
             struts,
             background_color,
         );
+
+        if let Some(x) = part.workspace_gap {
+            self.workspace_gap = Some(x.0);
+        }
 
         if let Some(x) = part.default_column_width {
             self.default_column_width = x.0;
@@ -125,6 +132,8 @@ pub struct LayoutPart {
     pub default_column_display: Option<ColumnDisplay>,
     #[knuffel(child, unwrap(argument))]
     pub gaps: Option<FloatOrInt<0, 65535>>,
+    #[knuffel(child, unwrap(argument))]
+    pub workspace_gap: Option<FloatOrInt<0, 65535>>,
     #[knuffel(child)]
     pub struts: Option<Struts>,
     #[knuffel(child)]

@@ -23,6 +23,7 @@ stock upstream; the fork is a thin series of commits on top of a tagged release.
 | [Mod-held window swipes](#mod-held-three-finger-window-swipes) | feature | `f4367f88`, `4177c74f` | [design](docs/fork/mod-swipe.md), [wiki](docs/wiki/Gestures.md#window-swipes) | maybe — behind a config switch |
 | [Blur shapes + glass materials](#rounded-fading-blur-shapes-and-liquid-glass) | feature | `13d945b5`, `454d9751`, `74b623a7`, `3cde7327` | [design](docs/fork/blur-shapes.md), [wiki](docs/wiki/Window-Effects.md) | no as-is — private protocol; GPL-3.0 shader lineage |
 | Vibrancy (`niri-vibrancy-v1`) | feature | (this branch) | [design](docs/fork/vibrancy.md) | no as-is: private protocol |
+| [Workspace and overview gaps](#workspace-and-overview-gaps) | feature | (this branch) | [wiki](docs/wiki/Configuration:-Miscellaneous.md#workspace-gap) | maybe: plain config, stock behaviour unchanged when unset |
 | [Workspace mat](#workspace-mat) | feature | (this branch) | [design](docs/fork/workspace-mat.md), [wiki](docs/wiki/Configuration:-Layout.md#mat) | maybe: plain config, no protocol |
 | [`active_column_idx` build fix](#fixes-and-housekeeping) | fix | `9d5bf9fc` | — | n/a (fixes the fork's own IPC commit) |
 | [Fork docs and housekeeping](#fixes-and-housekeeping) | internal | `9366e512`, `c5b8c69d`, `8fd4e23e`, `b414445c`, `6d9306a7`, `6baa66e5` | this file | no |
@@ -106,6 +107,21 @@ column, sharing physical-pixel boundaries so there are no seams or holes while c
   `src/render_helpers/shaders/{glass.frag,mod.rs}` (`glass_fade`, for soft glass ends),
   `docs/wiki/Configuration:-Layout.md`.
 - **Review it:** `git log --oneline -- src/layout/mat.rs`
+
+### Workspace and overview gaps
+
+Three gaps, each animating with the overview's open and close (gestures included). With none of
+them set, the spacing is stock.
+
+- `layout { workspace-gap }`: between workspaces in the normal view (stock: 10% of the
+  height). `overview { workspace-gap }`: between workspaces in the overview (stock: the normal
+  gap zoomed out). `Monitor::workspace_gap` interpolates between them by how far the zoom has
+  gone.
+- `overview { window-gap }`: between windows in the overview, on screen. The scrolling layout
+  adds the extra spacing to column x steps and tile y steps only (`overview_extra_gap`), so
+  windows move apart without resizing and hit testing follows.
+- **Files:** `niri-config/src/{layout,misc,lib}.rs`, `src/layout/{monitor,workspace,scrolling,tests}.rs`,
+  `docs/wiki/Configuration:-{Layout,Miscellaneous}.md`.
 
 ## Fixes and housekeeping
 

@@ -3983,6 +3983,7 @@ prop_compose! {
         center_focused_column in prop::option::of(arbitrary_center_focused_column()),
         always_center_single_column in prop::option::of(any::<bool>().prop_map(Flag)),
         empty_workspace_above_first in prop::option::of(any::<bool>().prop_map(Flag)),
+        workspace_gap in prop::option::of(arbitrary_spacing().prop_map(FloatOrInt)),
     ) -> niri_config::LayoutPart {
         niri_config::LayoutPart {
             gaps,
@@ -3994,6 +3995,7 @@ prop_compose! {
             border,
             shadow,
             tab_indicator,
+            workspace_gap,
             ..Default::default()
         }
     }
@@ -4014,12 +4016,16 @@ proptest! {
     fn random_operations_dont_panic(
         ops: Vec<Op>,
         layout_config in arbitrary_layout_part(),
+        overview_workspace_gap in prop::option::of(arbitrary_spacing()),
+        overview_window_gap in prop::option::of(arbitrary_spacing()),
     ) {
         // eprintln!("{ops:?}");
-        let options = Options {
+        let mut options = Options {
             layout: niri_config::Layout::from_part(&layout_config),
             ..Default::default()
         };
+        options.overview.workspace_gap = overview_workspace_gap;
+        options.overview.window_gap = overview_window_gap;
 
         check_ops_with_options(options, ops);
     }
@@ -4217,4 +4223,99 @@ fn window_swipe_cancelled_by_window_removal() {
     ];
     let layout = check_ops(ops);
     assert!(!layout.window_swipe_is_active());
+}
+
+/// The space between the first two workspaces, on screen.
+fn first_workspace_gap(layout: &Layout<TestWindow>) -> f64 {
+    let mon = layout.monitors().next().unwrap();
+    let geo: Vec<_> = mon.workspaces_render_geo().take(2).collect();
+    geo[1].loc.y - (geo[0].loc.y + geo[0].size.h)
+}
+
+#[test]
+fn workspace_gap_in_normal_view_and_overview() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::CompleteAnimations,
+    ];
+
+    // unset: the stock 10% of the height, scaled with the zoom
+    let mut options = Options::default();
+    options.overview.zoom = 0.5;
+    let mut layout = check_ops_with_options(options.clone(), ops.clone());
+    let height = layout.monitors().next().unwrap().view_size().h;
+    assert_eq!(first_workspace_gap(&layout), (height * 0.1).round());
+    check_ops_on_layout(&mut layout, [Op::ToggleOverview, Op::CompleteAnimations]);
+    assert_eq!(first_workspace_gap(&layout), (height * 0.1 * 0.5).round());
+
+    // set: exactly the configured gaps
+    options.layout.workspace_gap = Some(8.);
+    options.overview.workspace_gap = Some(24.);
+    let mut layout = check_ops_with_options(options, ops);
+    assert_eq!(first_workspace_gap(&layout), 8.);
+    check_ops_on_layout(&mut layout, [Op::ToggleOverview, Op::CompleteAnimations]);
+    assert_eq!(first_workspace_gap(&layout), 24.);
+}
+
+#[test]
+fn overview_window_gap_spreads_without_resizing() {
+    let mut options = Options::default();
+    options.layout.gaps = 16.;
+    options.overview.zoom = 0.5;
+    options.overview.window_gap = Some(32.);
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::ConsumeOrExpelWindowLeft { id: None },
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
+            Op::CompleteAnimations,
+        ],
+    );
+
+    type TileGeo = (usize, Point<f64, Logical>, Size<f64, Logical>);
+
+    // Positions and sizes of the tiles, in id order.
+    let tiles = |layout: &Layout<TestWindow>| -> Vec<TileGeo> {
+        let ws = layout.monitors().next().unwrap().active_workspace_ref();
+        let mut tiles: Vec<_> = ws
+            .tiles_with_render_positions()
+            .map(|(tile, pos, _)| (*tile.window().id(), pos, tile.tile_size()))
+            .collect();
+        tiles.sort_by_key(|(id, _, _)| *id);
+        tiles
+    };
+
+    let before = tiles(&layout);
+    check_ops_on_layout(&mut layout, [Op::ToggleOverview, Op::CompleteAnimations]);
+    let after = tiles(&layout);
+
+    // nothing resizes
+    for (b, a) in std::iter::zip(&before, &after) {
+        assert_eq!(b.2, a.2);
+    }
+
+    // 32 px on screen at zoom 0.5 is 64 px in the workspace, instead of the 16 px gaps
+    let col_gap = |t: &[TileGeo]| t[2].1.x - (t[0].1.x + t[0].2.w);
+    let tile_gap = |t: &[TileGeo]| t[1].1.y - (t[0].1.y + t[0].2.h);
+    assert_eq!(col_gap(&before), 16.);
+    assert_eq!(col_gap(&after), 64.);
+    assert_eq!(tile_gap(&before), 16.);
+    assert_eq!(tile_gap(&after), 64.);
+
+    // closing the overview puts everything back
+    check_ops_on_layout(&mut layout, [Op::ToggleOverview, Op::CompleteAnimations]);
+    assert_eq!(tiles(&layout), before);
 }

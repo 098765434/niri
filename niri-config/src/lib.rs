@@ -665,6 +665,42 @@ mod tests {
     }
 
     #[test]
+    fn parse_workspace_gaps() {
+        // unset by default: the stock spacing
+        let parsed = do_parse("");
+        assert_eq!(parsed.layout.workspace_gap, None);
+        assert_eq!(parsed.overview.workspace_gap, None);
+        assert_eq!(parsed.overview.window_gap, None);
+
+        let parsed = do_parse(
+            r#"
+            layout {
+                workspace-gap 8
+            }
+            overview {
+                workspace-gap 24
+                window-gap 16.5
+            }
+            "#,
+        );
+        assert_eq!(parsed.layout.workspace_gap, Some(8.));
+        assert_eq!(parsed.overview.workspace_gap, Some(24.));
+        assert_eq!(parsed.overview.window_gap, Some(16.5));
+
+        // a later block keeps what it doesn't set
+        let mut overview = parsed.overview;
+        overview.merge_with(&OverviewPart {
+            zoom: None,
+            backdrop_color: None,
+            workspace_shadow: None,
+            workspace_gap: Some(FloatOrInt(32.)),
+            window_gap: None,
+        });
+        assert_eq!(overview.workspace_gap, Some(32.));
+        assert_eq!(overview.window_gap, Some(16.5));
+    }
+
+    #[test]
     fn parse_mat() {
         // off by default, so stock configs render as before
         assert!(do_parse("").layout.mat.off);
@@ -1588,6 +1624,7 @@ mod tests {
                 empty_workspace_above_first: false,
                 default_column_display: Tabbed,
                 gaps: 8.0,
+                workspace_gap: None,
                 struts: Struts {
                     left: FloatOrInt(
                         1.0,
@@ -1847,6 +1884,8 @@ mod tests {
                         a: 0.3137255,
                     },
                 },
+                workspace_gap: None,
+                window_gap: None,
             },
             environment: Environment(
                 [

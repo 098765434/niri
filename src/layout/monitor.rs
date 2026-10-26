@@ -1090,6 +1090,9 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn update_render_elements(&mut self, is_active: bool) {
+        // Also catches workspaces added since the overview progress last changed.
+        self.sync_overview_progress();
+
         let mut insert_hint_ws_geo = None;
         let insert_hint_ws_id = self
             .insert_hint
@@ -1361,7 +1364,22 @@ impl<W: LayoutElement> Monitor<W> {
 
     fn workspace_gap(&self, zoom: f64) -> f64 {
         let scale = self.scale.fractional_scale();
-        let gap = self.view_size.h * 0.1 * zoom;
+        let overview_zoom = compute_overview_zoom(&self.options, Some(1.));
+
+        // How far the zoom has gone from the normal view to the overview, so the gap changes
+        // with the overview's open and close. The overview zoom is clamped below 1.
+        let t = (1. - zoom) / (1. - overview_zoom);
+
+        // Unset, these give the stock 10% of the height, scaled with the zoom.
+        let stock = self.view_size.h * 0.1;
+        let normal = self.options.layout.workspace_gap.unwrap_or(stock);
+        let overview = self
+            .options
+            .overview
+            .workspace_gap
+            .unwrap_or(stock * overview_zoom);
+
+        let gap = normal + (overview - normal) * t;
         round_logical_in_physical_max1(scale, gap)
     }
 
@@ -1378,6 +1396,7 @@ impl<W: LayoutElement> Monitor<W> {
     pub(super) fn set_overview_progress(&mut self, progress: Option<&super::OverviewProgress>) {
         let prev_render_idx = self.workspace_render_idx();
         self.overview_progress = progress.map(OverviewProgress::from);
+        self.sync_overview_progress();
         let new_render_idx = self.workspace_render_idx();
 
         // If the view jumped (can happen when going from corrected to uncorrected render_idx, for
@@ -1388,6 +1407,14 @@ impl<W: LayoutElement> Monitor<W> {
                 // FIXME: maintain velocity.
                 *anim = anim.restarted(prev_render_idx, anim.to(), 0.);
             }
+        }
+    }
+
+    /// Passes the overview progress to the workspaces, which spread their windows with it.
+    fn sync_overview_progress(&mut self) {
+        let progress = self.overview_progress.as_ref().map_or(0., |p| p.value());
+        for ws in &mut self.workspaces {
+            ws.set_overview_progress(progress);
         }
     }
 

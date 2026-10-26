@@ -375,6 +375,11 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling.are_transitions_ongoing() || self.floating.are_transitions_ongoing()
     }
 
+    /// Tells the tiled windows how far the overview is open, to spread them apart.
+    pub fn set_overview_progress(&mut self, progress: f64) {
+        self.scrolling.set_overview_progress(progress);
+    }
+
     pub fn update_render_elements(&mut self, is_active: bool) {
         self.scrolling
             .update_render_elements(is_active && !self.floating_is_active.get());
