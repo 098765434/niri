@@ -1,6 +1,6 @@
 # Spec: Mod-held three-finger window swipes for a niri fork
 
-Status: implemented (branch `ocbk`) · Scope: while Mod is held, three-finger touchpad swipes
+Status: implemented in `f4367f88`, with full width past the widest preset in `4177c74f` · Scope: while Mod is held, three-finger touchpad swipes
 act on the focused window instead of scrolling the view or switching workspaces.
 
 [Usage](#usage) is the user-facing part. The rest covers the design and the implementation,
@@ -216,8 +216,7 @@ gestures {
 
 Enabled by default. `off` restores normal three-finger swipes even while Mod is held.
 Defined as `ModSwipe` in `niri-config/src/gestures.rs`; the config test in
-`niri-config/src/lib.rs` covers parsing and merging, and `niri-config/tests/wiki-parses.rs`
-checks the wiki snippets.
+`niri-config/src/lib.rs` covers parsing and merging.
 
 ### 6. Verification
 

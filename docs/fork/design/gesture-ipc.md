@@ -62,14 +62,14 @@ matching variant; `replicate` emits the current value). Sketch:
 
 ```rust
 #[derive(Debug, Default)]
-pub struct ViewOffsetPart {
+pub struct ViewOffsetState {
     pub output: String,
     pub view_pos: f64,
     pub active_column_idx: usize,
     pub seen: bool,
 }
 
-impl EventStreamStatePart for ViewOffsetPart {
+impl EventStreamStatePart for ViewOffsetState {
     fn apply(&mut self, event: Event) -> Option<Event> {
         match event {
             Event::ViewOffsetChanged { output, view_pos, active_column_idx } => {
@@ -93,8 +93,8 @@ impl EventStreamStatePart for ViewOffsetPart {
 }
 ```
 
-Do the same for an `OverviewProgressPart { progress }` and a
-`WorkspaceSwitchPart { output, workspace_idx, active_workspace_idx }`. Register all three
+Do the same for an `OverviewProgressState { progress }` and a
+`WorkspaceSwitchState { output, workspace_idx, active_workspace_idx }`. Register all three
 in `EventStreamState` and its `Default`/iteration.
 
 ### 3.3 Hook point — `src/ipc/server.rs`, `impl State`

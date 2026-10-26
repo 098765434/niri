@@ -4,10 +4,16 @@ Materials are named liquid-glass looks defined in a `materials {}` config block.
 them over the blurred background for [blur shapes](blur-shapes.md) that name one, for layer and
 window rules that name one, and for the [workspace mat](../layout/workspace-mat.md).
 
+Status: implemented in `454d9751` (materials), `3cde7327` (materials on rules, `materialize`,
+`report-backdrop`), `a1a78bd0` (`blur-passes`, `blur-offset`), `78620a8c` (`tone`) and
+`7bef7001` (outward lens, `glow`).
+
 ## Usage
 
 A shape can name a *material*, a liquid-glass look niri draws over the blurred background: the edge bends what's behind it like a lens, red and blue part slightly there, the rim is lit from one side, and the client's tint is laid on, thicker over a backdrop close to it in brightness.
 Materials are defined in the config, and niri tells clients which names exist; a name that isn't defined draws plain blur.
+
+An example (not the defaults, which are in the table below):
 
 ```kdl
 materials {
@@ -32,6 +38,29 @@ materials {
     }
 }
 ```
+
+Every key is optional. The defaults and ranges (`Material::params` in
+`niri-config/src/appearance.rs`):
+
+| Key | Default | Range |
+|---|---|---|
+| `refraction` | `10` | 0–200 logical px |
+| `bevel` | `16` | 0–200 logical px |
+| `dispersion` | `0.25` | 0–1 |
+| `rim` | `0.5` | 0–1 |
+| `glow` | a quarter of `rim` | 0–1 |
+| `light-angle` | `225` (top left) | 0–360 degrees clockwise from the right |
+| `far-rim` | `0.35` | 0–1 |
+| `specular` | `0.4` | 0–1 |
+| `tint` | `1` | 0–2 |
+| `adaptive-tint` | `0` | 0–1 |
+| `tone` | `1` | 0–1 |
+| `saturation` | the blur's | 0–1000 |
+| `noise` | the blur's | 0–1000 |
+| `materialize` | `true` | |
+| `report-backdrop` | `false` | |
+| `blur-passes` | `blur {}`'s | an integer, clamped to 1–31 |
+| `blur-offset` | `blur {}`'s | 0–100 |
 
 A shape fading in with `materialize` on (the default) bends and lights the backdrop only as much as it shows, so the glass materializes rather than a finished lens fading in.
 

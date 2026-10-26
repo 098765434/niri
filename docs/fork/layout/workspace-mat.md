@@ -1,13 +1,14 @@
-# Spec: Workspace mat for a niri fork
+# Workspace mat
 
-Status: implemented · Scope: a sharp-cornered backing painted behind the scrolling layout's
-windows, so the gaps between and around windows read as one clean surface in normal mode
-while the wallpaper stays visible wherever there are no windows. The mat is a solid colour
-by default, or optionally liquid glass. It fades out as the overview opens, which reveals
-the same gaps over the wallpaper.
+Status: implemented in `58528c07`, with soft ends inside the end columns (and for glass) in
+`f297cd5e` and `behind-bars` in `74d6c36d`. The spec was drafted in `148ff076`.
 
-This document covers the design and the planned implementation. User-facing docs will go in
-[`Configuration:-Layout.md`](../../wiki/Configuration:-Layout.md) once the design settles.
+A sharp-cornered backing painted behind the scrolling layout's windows, so the gaps between and
+around windows read as one clean surface in normal mode while the wallpaper stays visible
+wherever there are no windows. The mat is a solid colour by default, or optionally liquid glass.
+It fades out as the overview opens, which reveals the same gaps over the wallpaper.
+
+[Usage](#usage) is the user-facing part. The rest is the design spec.
 
 ## Usage
 
@@ -99,7 +100,7 @@ render_workspaces()
                                                                          └─ Mat::render  (pushed last = bottom)
 ScrollingSpace::update_render_elements ─▶ mat_geometry() ─▶ Mat (cells, slab, ends)
 
-src/layout/mat.rs (new)
+src/layout/mat.rs
   Mat::render ── solid:  SolidColorRenderElement per cell, BorderRenderElement gradient per soft end
               └─ glass:  Xray::render with RenderParams { geometry: cell, clip: slab, material }
 ```
@@ -304,7 +305,7 @@ another `ends` value if live use shows a need.
   mat on, while scrolling and during the overview transition. The amane glass measurements
   showed per-shape glass cost adds up quickly on the Radeon 860M.
 
-### 6. Known limitations (draft)
+### 6. Known limitations
 
 - Strip-end pops on open/close, softened but not removed by `ends "soft"` (§3.2).
 - An xray-blurred bar shows wallpaper rather than a solid mat (§3.4).
@@ -325,5 +326,4 @@ scrolling by at least a frame.
 
 Touched files: `niri-config/src/layout.rs`, `src/layout/{mat,mod,scrolling,workspace,monitor}.rs`,
 `src/render_helpers/{background_effect,xray,framebuffer_effect}.rs` and
-`src/render_helpers/shaders/{glass.frag,mod.rs}` (soft glass ends),
-`docs/wiki/Configuration:-Layout.md`, `FORK.md`.
+`src/render_helpers/shaders/{glass.frag,mod.rs}` (soft glass ends).

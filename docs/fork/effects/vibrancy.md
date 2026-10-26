@@ -1,6 +1,7 @@
 # Vibrancy
 
-Status: implemented on `ocbk`. The client side is amane's vibrant layer (`amane/docs/fork/blur.md`).
+Status: implemented in `4c68634c`, with plus-darker reworked to subtract in `ada326f0`. The client side
+is amane's vibrant layer.
 
 ## Why
 
