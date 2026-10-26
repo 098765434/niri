@@ -39,11 +39,18 @@ unless a rule says `blur false`.
   physical pixel inside the shape, so it stays under the client's own
   antialiased edge, at its alpha.
 - **Xray:** one quad per shape from the shared blurred background
-  (`src/render_helpers/xray.rs`).
+  (`src/render_helpers/xray.rs`). A material with a blur of its own
+  (`blur-passes`, `blur-offset`) draws from a second blur of the same
+  background, which the `EffectBuffer` keeps beside its own (up to four, redone
+  only when the background changes).
 - **Non-xray:** the area behind all of a surface's shapes is captured and
   blurred once, and each shape is drawn from that capture
   (`src/render_helpers/framebuffer_effect.rs`). This is needed because smithay
-  re-captures duplicated framebuffer effects every frame.
+  re-captures duplicated framebuffer effects every frame. Shapes whose
+  materials blur differently are grouped, one capture per blur, of the area
+  behind that group's shapes. Every capture element comes after every shape in
+  the element list, so all are taken before any shape draws and none sees
+  another's glass.
 - Each shape drawn from one capture gets its own element id. A shared id made
   smithay pair instances by geometry, and a frame could keep a stale rectangle
   of frost (`74b623a7`).
