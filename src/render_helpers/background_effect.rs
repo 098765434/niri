@@ -144,7 +144,10 @@ pub fn glass_uniforms(
             "glass_light",
             [cos, sin, material.far_rim, material.specular * grown],
         ),
-        Uniform::new("glass_tint_params", [material.tint, material.adaptive_tint]),
+        Uniform::new(
+            "glass_tint_params",
+            [material.tint, material.adaptive_tint, material.tone],
+        ),
     ]
 }
 
