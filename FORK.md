@@ -19,13 +19,13 @@ stock upstream; the fork is a thin series of commits on top of a tagged release.
 
 | Feature | Kind | Commits | Docs | Upstreamable? |
 |---|---|---|---|---|
-| [Gesture-progress IPC events](#gesture-progress-ipc-events) | feature | `59fe93e4` | [design](docs/fork/gesture-ipc.md) | maybe — generic IPC, but per-frame events are chatty |
-| [Mod-held window swipes](#mod-held-three-finger-window-swipes) | feature | `f4367f88`, `4177c74f` | [design](docs/fork/mod-swipe.md), [wiki](docs/wiki/Gestures.md#window-swipes) | maybe — behind a config switch |
-| [Blur shapes + glass materials](#rounded-fading-blur-shapes-and-liquid-glass) | feature | `13d945b5`, `454d9751`, `74b623a7`, `3cde7327` | [design](docs/fork/blur-shapes.md), [wiki](docs/wiki/Window-Effects.md) | no as-is — private protocol; GPL-3.0 shader lineage |
-| Vibrancy (`niri-vibrancy-v1`) | feature | (this branch) | [design](docs/fork/vibrancy.md) | no as-is: private protocol |
+| [Gesture-progress IPC events](#gesture-progress-ipc-events) | feature | `59fe93e4` | [design](docs/fork/design/gesture-ipc.md) | maybe — generic IPC, but per-frame events are chatty |
+| [Mod-held window swipes](#mod-held-three-finger-window-swipes) | feature | `f4367f88`, `4177c74f` | [design](docs/fork/gestures/mod-swipe.md), [wiki](docs/wiki/Gestures.md#window-swipes) | maybe — behind a config switch |
+| [Blur shapes + glass materials](#rounded-fading-blur-shapes-and-liquid-glass) | feature | `13d945b5`, `454d9751`, `74b623a7`, `3cde7327` | [design](docs/fork/effects/blur-shapes.md), [wiki](docs/wiki/Window-Effects.md) | no as-is — private protocol; GPL-3.0 shader lineage |
+| Vibrancy (`niri-vibrancy-v1`) | feature | (this branch) | [design](docs/fork/effects/vibrancy.md) | no as-is: private protocol |
 | [Workspace and overview gaps](#workspace-and-overview-gaps) | feature | (this branch) | [wiki](docs/wiki/Configuration:-Miscellaneous.md#workspace-gap) | maybe: plain config, stock behaviour unchanged when unset |
-| [Workspace mat](#workspace-mat) | feature | (this branch) | [design](docs/fork/workspace-mat.md), [wiki](docs/wiki/Configuration:-Layout.md#mat) | maybe: plain config, no protocol |
-| [Desktop layers](#desktop-layers) | feature | (this branch) | [design](docs/fork/desktop-layer.md), [wiki](docs/wiki/Configuration:-Layer-Rules.md#desktop) | maybe: plain config plus one IPC event |
+| [Workspace mat](#workspace-mat) | feature | (this branch) | [design](docs/fork/layout/workspace-mat.md), [wiki](docs/wiki/Configuration:-Layout.md#mat) | maybe: plain config, no protocol |
+| [Desktop layers](#desktop-layers) | feature | (this branch) | [design](docs/fork/layout/desktop-layer.md), [wiki](docs/wiki/Configuration:-Layer-Rules.md#desktop) | maybe: plain config plus one IPC event |
 | [`active_column_idx` build fix](#fixes-and-housekeeping) | fix | `9d5bf9fc` | — | n/a (fixes the fork's own IPC commit) |
 | [Fork docs and housekeeping](#fixes-and-housekeeping) | internal | `9366e512`, `c5b8c69d`, `8fd4e23e`, `b414445c`, `6d9306a7`, `6baa66e5` | this file | no |
 
@@ -154,7 +154,7 @@ client can stop drawing.
 | Work | Where | Status |
 |---|---|---|
 | **Pinned columns**: a column docked to a screen edge, with its own rail, outside the scroll math; actions `pin-column`, `unpin-column`, `toggle-column-pinned`, `focus-pinned` | branch `pinned-columns` (`99562604`, pushed), spec `niri-pinned-columns-spec.md` on that branch | compositor core done with tests; overview drop target, shell UI and cross-workspace pins deferred; not merged into `ocbk` |
-| **`MoveColumnToIndex` by window**: an optional `window_id` that moves that window's column (on whichever workspace it's on) without changing the active column or the focus, for amane-shell's dock drag (`Layout::move_column_with_window_to_index`, config action `MoveColumnToIndexById`) | [`docs/fork/column-by-window.md`](docs/fork/column-by-window.md); `ocbk` | done with a layout test and a proptest op; stock niri ignores the field and moves the focused column |
+| **`MoveColumnToIndex` by window**: an optional `window_id` that moves that window's column (on whichever workspace it's on) without changing the active column or the focus, for amane-shell's dock drag (`Layout::move_column_with_window_to_index`, config action `MoveColumnToIndexById`) | [`docs/fork/ipc/actions.md`](docs/fork/ipc/actions.md); `ocbk` | done with a layout test and a proptest op; stock niri ignores the field and moves the focused column |
 
 The `pinned-columns` branch predates the move of the fork docs into `docs/fork/`. Expect a
 FORK.md conflict when it's rebased onto `ocbk`; move its spec to `docs/fork/pinned-columns.md`

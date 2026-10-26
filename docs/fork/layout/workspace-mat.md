@@ -7,7 +7,7 @@ by default, or optionally liquid glass. It fades out as the overview opens, whic
 the same gaps over the wallpaper.
 
 This document covers the design and the planned implementation. User-facing docs will go in
-[`Configuration:-Layout.md`](../wiki/Configuration:-Layout.md) once the design settles.
+[`Configuration:-Layout.md`](../../wiki/Configuration:-Layout.md) once the design settles.
 
 ## 1. Goal
 

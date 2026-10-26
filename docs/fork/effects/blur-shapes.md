@@ -1,7 +1,7 @@
 # Blur shapes and liquid-glass materials
 
 Status: implemented on `ocbk` (`13d945b5`, `454d9751`, `74b623a7`). User-facing
-docs: [Window Effects](../wiki/Window-Effects.md).
+docs: [Window Effects](../../wiki/Window-Effects.md).
 
 ## Why
 
