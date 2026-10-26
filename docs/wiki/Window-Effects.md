@@ -61,6 +61,7 @@ materials {
         specular 0.5      // highlight where the light hits the edge, 0-1
         tint 1            // how strongly the client's tint shows, 0-2
         adaptive-tint 0   // thicken the tint over a backdrop of similar brightness, 0-1
+        tone 1            // how much of the backdrop's brightness range to keep, toward the tint's side, 0-1
         materialize true  // build the lens and rim up with the shape's opacity as it fades in
         report-backdrop false // tell the client how bright the backdrop is behind each shape
         // saturation 1.5 // optional, in place of the blur's
@@ -78,6 +79,8 @@ The reading is coarse: an 8×8 version of the shape's area, read back from the G
 It works for non-xray shapes only, and it's off by default.
 
 With `blur-passes` or `blur-offset` set, the backdrop behind that material's shapes is blurred with them instead of `blur {}`'s, so big glass can frost more than small glass, as Apple's does: Figma's macOS kit frosts small glass at 6 and medium and large glass at 16.
+
+`tone` below 1 squeezes the backdrop's brightness toward the tint's side before the tint is laid on, keeping its hue: under a dark tint the backdrop keeps 0 to `tone` of its brightness, under a light one it stays within `tone` of white. Like the darken and lighten layers in Apple's materials, this keeps a thin tint readable over any wallpaper. It only applies to shapes with a tint.
 Each distinct blur costs a blur of its own: for xray, one more blur of the backdrop, redone only when it changes; for non-xray shapes, one more capture and blur of the area behind that blur's shapes, every frame they draw.
 niri keeps up to four such blurs per backdrop.
 

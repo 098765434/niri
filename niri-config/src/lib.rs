@@ -678,6 +678,7 @@ mod tests {
                     rim 0
                     blur-passes 2
                     blur-offset 1.5
+                    tone 0.6
                 }
             }
             "#,
@@ -695,6 +696,8 @@ mod tests {
         assert_eq!((glass.blur_passes, glass.blur_offset), (None, None));
         let frosted = parsed.materials.0[1].params();
         assert_eq!((frosted.blur_passes, frosted.blur_offset), (Some(2), Some(1.5)));
+        // the tone keeps the whole brightness range unless set
+        assert_eq!((glass.tone, frosted.tone), (1., 0.6));
     }
 
     #[test]

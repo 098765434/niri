@@ -1145,6 +1145,11 @@ pub struct Material {
     /// How much the tint thickens over a backdrop close to it in brightness, 0 to 1.
     #[knuffel(child, unwrap(argument))]
     pub adaptive_tint: Option<FloatOrInt<0, 1>>,
+    /// How much of the background's brightness range the glass keeps, toward its tint's side:
+    /// dark glass keeps 0 to this, light glass this far below white. 1 (the default) keeps it
+    /// all; lower keeps a thin tint readable over any wallpaper, as Apple's materials do.
+    #[knuffel(child, unwrap(argument))]
+    pub tone: Option<FloatOrInt<0, 1>>,
     /// Saturation of the background, in place of the blur's.
     #[knuffel(child, unwrap(argument))]
     pub saturation: Option<FloatOrInt<0, 1000>>,
@@ -1181,6 +1186,7 @@ pub struct MaterialParams {
     pub specular: f32,
     pub tint: f32,
     pub adaptive_tint: f32,
+    pub tone: f32,
     pub saturation: Option<f32>,
     pub noise: Option<f32>,
     pub materialize: bool,
@@ -1204,6 +1210,7 @@ impl Material {
             specular: unit(self.specular, 0.4),
             tint: self.tint.map_or(1., |v| v.0 as f32),
             adaptive_tint: unit(self.adaptive_tint, 0.),
+            tone: unit(self.tone, 1.),
             saturation: self.saturation.map(|v| v.0 as f32),
             noise: self.noise.map(|v| v.0 as f32),
             materialize: self.materialize.unwrap_or(true),

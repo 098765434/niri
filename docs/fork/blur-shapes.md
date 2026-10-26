@@ -66,6 +66,9 @@ looks that shapes pick by id. They are drawn by
   thick lens, instead of sampling past the edge (which showed a band of
   whatever lay outside, plus a fringe) (`74b623a7`).
 - A rim lit from `light-angle`, with a far-edge catch and a specular highlight.
+- With `tone` below 1, the backdrop's brightness is first squeezed toward the
+  tint's side (dark tint: `c·tone`; light tint: `1 − (1 − c)·tone`), as Apple's
+  darken/lighten layers do, so thin tints stay readable.
 - The client's tint is laid on. With `adaptive-tint`, it is thickened over a
   backdrop of similar brightness.
 - Optional `saturation` / `noise` override the blur's own values.

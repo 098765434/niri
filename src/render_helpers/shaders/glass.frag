@@ -43,8 +43,8 @@ uniform vec4 glass_tint;
 uniform vec4 glass_shape;
 // light direction (x, y, towards the light), far rim, specular
 uniform vec4 glass_light;
-// tint strength, adaptive tint
-uniform vec2 glass_tint_params;
+// tint strength, adaptive tint, tone
+uniform vec3 glass_tint_params;
 
 float niri_rounding_alpha(vec2 coords, vec2 size, vec4 corner_radius);
 vec4 postprocess(vec4 color);
@@ -108,6 +108,16 @@ void main() {
     float tint_alpha = glass_tint.a * glass_tint_params.x;
     if (tint_alpha > 0.0) {
         vec3 tint_rgb = glass_tint.rgb / max(glass_tint.a, 0.0001);
+
+        // The tone: the background's brightness squeezed toward the tint's side,
+        // its hue kept, as Apple's darken and lighten layers do.
+        float tone = glass_tint_params.z;
+        if (tone < 1.0) {
+            color.rgb = dot(tint_rgb, LUMA) < 0.5
+                ? color.rgb * tone
+                : color.a - (color.a - color.rgb) * tone;
+        }
+
         float gap = abs(dot(color.rgb, LUMA) - dot(tint_rgb, LUMA));
         float thicken = mix(1.0, 1.6 - gap, glass_tint_params.y);
         tint_alpha = clamp(tint_alpha * thicken, 0.0, 1.0);

@@ -143,7 +143,7 @@ impl Shaders {
                     UniformName::new("glass_tint", UniformType::_4f),
                     UniformName::new("glass_shape", UniformType::_4f),
                     UniformName::new("glass_light", UniformType::_4f),
-                    UniformName::new("glass_tint_params", UniformType::_2f),
+                    UniformName::new("glass_tint_params", UniformType::_3f),
                     UniformName::new("noise", UniformType::_1f),
                     UniformName::new("saturation", UniformType::_1f),
                     UniformName::new("bg_color", UniformType::_4f),
