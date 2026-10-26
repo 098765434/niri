@@ -14,6 +14,9 @@ A shape can also name a [material](materials.md), a liquid-glass look niri draws
 
 ## Design / internals
 
+What the shapes' captures hold on the GPU, and when they are dropped, is in
+[memory.md](memory.md).
+
 ### Why
 
 `ext-background-effect-v1` describes blur as a region of integer rectangles: no

@@ -1436,6 +1436,10 @@ impl<W: LayoutElement> Tile<W> {
                     warn!("error rendering tile to offscreen for alpha animation: {err:?}");
                 }
             }
+        } else {
+            // Neither swiped nor fading: the swipe's offscreen, a window-sized texture that
+            // would otherwise stay for the tile's life, can go.
+            self.swipe_offscreen.clear();
         }
 
         if !pushed {

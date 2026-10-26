@@ -69,6 +69,12 @@ pub struct OffscreenData {
 }
 
 impl OffscreenBuffer {
+    /// Lets go of the texture, for a buffer that won't be rendered to for a while; the next
+    /// `render` makes one again.
+    pub fn clear(&self) {
+        self.inner.borrow_mut().take();
+    }
+
     pub fn render(
         &self,
         renderer: &mut GlesRenderer,

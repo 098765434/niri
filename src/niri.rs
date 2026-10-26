@@ -1988,6 +1988,10 @@ impl State {
             return;
         };
 
+        // The screencast and screen-capture targets were rendered once for this; their xray
+        // buffers (a full output's texture plus blur chains each) needn't stay for the session.
+        self.niri.release_capture_xray();
+
         // Now that we captured the screenshots, clear grabs like drag-and-drop, etc.
         self.niri.seat.get_pointer().unwrap().unset_grab(
             self,
@@ -2089,6 +2093,11 @@ impl State {
                 );
 
                 self.niri.clear_xray_elements(output);
+                if has_blocked_out {
+                    // Rendered once for the snapshot; see capture_screenshots' caller.
+                    let state = self.niri.output_state.get(output).unwrap();
+                    state.xray.release_target(RenderTarget::Screencast);
+                }
             } else {
                 self.niri
                     .layout
@@ -4156,6 +4165,8 @@ impl Niri {
                     buffer.update_size(size, scale);
                     buffer.update_blur_options(blur_options);
                 }
+                // Buffers, chains and variants nothing used for a while go now.
+                state.xray.tick();
 
                 let layer_map = layer_map_for_output(out);
                 for surface in layer_map.layers_on(Layer::Background) {
@@ -5548,6 +5559,16 @@ impl Niri {
         self.queue_redraw_all();
     }
 
+    /// Lets go of the screencast and screen-capture targets' xray buffers on every output,
+    /// after a render that used them once. A running cast renders its target again next frame
+    /// and gets them back then.
+    pub fn release_capture_xray(&self) {
+        for state in self.output_state.values() {
+            state.xray.release_target(RenderTarget::Screencast);
+            state.xray.release_target(RenderTarget::ScreenCapture);
+        }
+    }
+
     pub fn capture_screenshots<'a>(
         &'a self,
         renderer: &'a mut GlesRenderer,
@@ -6387,6 +6408,9 @@ impl Niri {
                 Some((output, textures))
             })
             .collect();
+
+        // Rendered once for the transition; see capture_screenshots' caller.
+        self.release_capture_xray();
 
         let delay = delay_ms.map_or(screen_transition::DELAY, |d| {
             Duration::from_millis(u64::from(d))

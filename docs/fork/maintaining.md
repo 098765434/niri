@@ -145,3 +145,4 @@ Every commit in `v26.04..ocbk`, oldest first, by feature. Later docs-only commit
 | `e0139bac` | [gaps](layout/gaps.md) | step by the rounded working-area edges |
 | `871b5ee5` | [desktop layer](layout/desktop-layer.md) | `desktop` layer rule and the `DesktopObscured` event |
 | `cff5af59` and the six after it | housekeeping | docs reorganization: `docs/fork/` feature folders, wiki pages reset to `v26.04`, `FORK.md` stub |
+| `0b2ab4e5` | [effects memory](effects/memory.md) | base chain and background only when used, idle eviction, capture targets released, shape captures dropped, swipe offscreen cleared |

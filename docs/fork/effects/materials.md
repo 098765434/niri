@@ -108,6 +108,9 @@ in the rules.
 
 ## Design / internals
 
+What a material's blur costs in GPU memory, and when its chain is built and freed, is in
+[memory.md](memory.md).
+
 A `materials {}` config block (`niri-config/src/appearance.rs`) defines named
 looks that shapes pick by id. They are drawn by
 `src/render_helpers/shaders/glass.frag`:
