@@ -665,6 +665,58 @@ mod tests {
     }
 
     #[test]
+    fn parse_mat() {
+        // off by default, so stock configs render as before
+        assert!(do_parse("").layout.mat.off);
+
+        let parsed = do_parse(
+            r##"
+            layout {
+                mat {
+                    color "#000000c0"
+                    overview "keep"
+                    column-fill "tiles"
+                    ends "soft"
+                    soft-end-length 48
+                    material "smoke"
+                }
+            }
+            "##,
+        );
+        let mat = &parsed.layout.mat;
+        assert!(!mat.off);
+        assert_eq!(mat.color, Color::from_rgba8_unpremul(0, 0, 0, 0xc0));
+        assert_eq!(mat.overview, MatOverview::Keep);
+        assert_eq!(mat.column_fill, MatColumnFill::Tiles);
+        assert_eq!(mat.ends, MatEnds::Soft);
+        assert_eq!(mat.soft_end_length, 48.);
+        assert_eq!(mat.material.as_deref(), Some("smoke"));
+
+        // an empty block turns it on with the defaults
+        let mat = do_parse("layout {\n mat {}\n}").layout.mat;
+        assert_eq!(
+            mat,
+            Mat {
+                off: false,
+                ..Mat::default()
+            }
+        );
+
+        // a later block merges onto an earlier one
+        let mut mat = Mat::default();
+        mat.merge_with(&MatPart {
+            ends: Some(MatEnds::Soft),
+            ..MatPart::default()
+        });
+        mat.merge_with(&MatPart {
+            off: true,
+            ..MatPart::default()
+        });
+        assert!(mat.off);
+        assert_eq!(mat.ends, MatEnds::Soft);
+    }
+
+    #[test]
     fn parse_materials() {
         let parsed = do_parse(
             r#"
@@ -1553,6 +1605,20 @@ mod tests {
                     g: 0.25,
                     b: 0.25,
                     a: 1.0,
+                },
+                mat: Mat {
+                    off: true,
+                    color: Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 1.0,
+                    },
+                    overview: Fade,
+                    column_fill: Full,
+                    ends: Hard,
+                    soft_end_length: 96.0,
+                    material: None,
                 },
             },
             prefer_no_csd: true,

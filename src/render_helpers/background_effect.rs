@@ -103,7 +103,7 @@ fn material(id: u32) -> Option<MaterialParams> {
 }
 
 /// The material a rule names, none if it isn't configured.
-fn material_named(name: &str) -> Option<MaterialParams> {
+pub(crate) fn material_named(name: &str) -> Option<MaterialParams> {
     MATERIALS
         .lock()
         .unwrap()

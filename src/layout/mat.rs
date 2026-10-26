@@ -1,0 +1,425 @@
+//! A backing painted behind the scrolling layout's windows.
+//!
+//! The mat fills the gaps between and around the columns, so they read as one surface in normal
+//! mode, and fades out as the overview opens. It only reads the geometry the scrolling layout
+//! already computes each frame. See `docs/fork/workspace-mat.md`.
+
+use niri_config::{Color, CornerRadius, GradientInterpolation, MatColumnFill, MatEnds};
+use smithay::backend::renderer::element::Kind;
+use smithay::utils::{Logical, Point, Rectangle, Size};
+
+use super::Options;
+use crate::niri_render_elements;
+use crate::render_helpers::background_effect::{material_named, RenderParams};
+use crate::render_helpers::blur::BlurOptions;
+use crate::render_helpers::border::BorderRenderElement;
+use crate::render_helpers::renderer::NiriRenderer;
+use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
+use crate::render_helpers::xray::{XrayElement, XrayPos};
+use crate::render_helpers::RenderCtx;
+use crate::utils::round_logical_in_physical;
+
+/// A column's visible extent, in view coordinates.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MatColumn {
+    pub x: f64,
+    pub width: f64,
+    /// Bottom of the column's last visible tile.
+    pub bottom: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatGeometry {
+    /// The bounding rectangle of the mat, without soft ends.
+    pub slab: Rectangle<f64, Logical>,
+    /// A partition of the slab's x range, sharing boundaries; one cell when the cells would all
+    /// be the full height.
+    pub cells: Vec<Rectangle<f64, Logical>>,
+    /// The fades just outside the slab's left and right edges.
+    pub soft_ends: Option<[Rectangle<f64, Logical>; 2]>,
+}
+
+/// Where the mat goes for `columns`.
+///
+/// `working_bottom` is the bottom of the working area: a column whose tiles reach it covers the
+/// view to its bottom, struts included.
+pub fn mat_geometry(
+    columns: &[MatColumn],
+    config: &niri_config::Mat,
+    gap: f64,
+    view_size: Size<f64, Logical>,
+    working_bottom: f64,
+    scale: f64,
+) -> Option<MatGeometry> {
+    if config.off || columns.is_empty() {
+        return None;
+    }
+
+    let round = |x: f64| round_logical_in_physical(scale, x);
+
+    let mut columns = columns.to_vec();
+    columns.sort_by(|a, b| a.x.total_cmp(&b.x));
+
+    // Every boundary is rounded once and used by both cells beside it, so the cells tile the
+    // slab with no seams at fractional scales and no holes while columns move.
+    let mut bounds = Vec::with_capacity(columns.len() + 1);
+    bounds.push(round(columns[0].x - gap));
+    for pair in columns.windows(2) {
+        let mid = (pair[0].x + pair[0].width + pair[1].x) / 2.;
+        let prev = *bounds.last().unwrap();
+        bounds.push(f64::max(prev, round(mid)));
+    }
+    let right = columns
+        .iter()
+        .map(|col| col.x + col.width)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let prev = *bounds.last().unwrap();
+    bounds.push(f64::max(prev, round(right + gap)));
+
+    let view_h = view_size.h;
+    let height = |col: &MatColumn| match config.column_fill {
+        MatColumnFill::Full => view_h,
+        MatColumnFill::Tiles => {
+            let bottom = col.bottom + gap;
+            // Allow for rounding of tile sizes.
+            if bottom >= working_bottom - 0.5 {
+                view_h
+            } else {
+                round(bottom).clamp(0., view_h)
+            }
+        }
+    };
+
+    let slab_x = bounds[0];
+    let slab_w = bounds[bounds.len() - 1] - slab_x;
+    let slab = Rectangle::new(Point::from((slab_x, 0.)), Size::from((slab_w, view_h)));
+
+    let heights: Vec<f64> = columns.iter().map(height).collect();
+    let cells = if heights.iter().all(|h| *h == view_h) {
+        vec![slab]
+    } else {
+        heights
+            .iter()
+            .enumerate()
+            .map(|(i, h)| {
+                let x = bounds[i];
+                Rectangle::new(Point::from((x, 0.)), Size::from((bounds[i + 1] - x, *h)))
+            })
+            .collect()
+    };
+
+    let length = round(config.soft_end_length);
+    let soft_ends = (config.ends == MatEnds::Soft && length > 0.).then(|| {
+        let left_h = heights[0];
+        let right_h = heights[heights.len() - 1];
+        [
+            Rectangle::new(
+                Point::from((slab_x - length, 0.)),
+                Size::from((length, left_h)),
+            ),
+            Rectangle::new(
+                Point::from((slab_x + slab_w, 0.)),
+                Size::from((length, right_h)),
+            ),
+        ]
+    });
+
+    Some(MatGeometry {
+        slab,
+        cells,
+        soft_ends,
+    })
+}
+
+#[derive(Debug)]
+pub struct Mat {
+    geometry: Option<MatGeometry>,
+    /// One per cell, kept across frames so damage tracking only sees real changes.
+    buffers: Vec<SolidColorBuffer>,
+    color: Color,
+    material: Option<niri_config::MaterialParams>,
+    /// The material name last warned about, to warn once.
+    warned_material: Option<String>,
+    warned_soft_glass: bool,
+    scale: f64,
+}
+
+niri_render_elements! {
+    MatRenderElement => {
+        SolidColor = SolidColorRenderElement,
+        Border = BorderRenderElement,
+        Xray = XrayElement,
+    }
+}
+
+impl Mat {
+    pub fn new() -> Self {
+        Self {
+            geometry: None,
+            buffers: Vec::new(),
+            color: Color::default(),
+            material: None,
+            warned_material: None,
+            warned_soft_glass: false,
+            scale: 1.,
+        }
+    }
+
+    pub fn update(
+        &mut self,
+        columns: &[MatColumn],
+        config: &niri_config::Mat,
+        gap: f64,
+        view_size: Size<f64, Logical>,
+        working_bottom: f64,
+        scale: f64,
+    ) {
+        self.geometry = mat_geometry(columns, config, gap, view_size, working_bottom, scale);
+        self.color = config.color;
+        self.scale = scale;
+
+        // looked up each time, so a reloaded material applies
+        self.material = config.material.as_deref().and_then(|name| {
+            let material = material_named(name);
+            if material.is_none() && self.warned_material.as_deref() != Some(name) {
+                warn!("mat: unknown material {name:?}, drawing a solid mat");
+                self.warned_material = Some(name.to_owned());
+            }
+            material
+        });
+
+        if self.material.is_some() && config.ends == MatEnds::Soft && !self.warned_soft_glass {
+            info!("mat: glass draws hard ends for now");
+            self.warned_soft_glass = true;
+        }
+
+        let Some(geo) = &self.geometry else {
+            self.buffers.clear();
+            return;
+        };
+
+        self.buffers
+            .resize_with(geo.cells.len(), SolidColorBuffer::default);
+        for (buffer, cell) in self.buffers.iter_mut().zip(&geo.cells) {
+            buffer.update(cell.size, self.color);
+        }
+    }
+
+    pub fn render<R: NiriRenderer>(
+        &self,
+        mut ctx: RenderCtx<R>,
+        xray_pos: XrayPos,
+        alpha: f32,
+        options: &Options,
+        push: &mut dyn FnMut(MatRenderElement),
+    ) {
+        let Some(geo) = &self.geometry else {
+            return;
+        };
+        if alpha <= 0. {
+            return;
+        }
+
+        if let (Some(material), Some(xray)) = (self.material, ctx.xray) {
+            let areas = geo
+                .cells
+                .iter()
+                .map(|cell| {
+                    let params = RenderParams {
+                        geometry: *cell,
+                        subregion: None,
+                        // The rims sit on the slab's outer edges, not between cells.
+                        clip: Some((geo.slab, CornerRadius::default())),
+                        scale: self.scale,
+                        alpha,
+                        exact_clip: false,
+                        material: Some(material),
+                        tint: self.color.to_array_premul(),
+                        report: None,
+                    };
+                    (params, xray_pos.offset(cell.loc))
+                })
+                .collect();
+
+            let blur = &options.blur;
+            let blur_options = (!blur.off).then(|| BlurOptions::from(*blur));
+            let (noise, saturation) = if blur.off {
+                (0., 1.)
+            } else {
+                (blur.noise as f32, blur.saturation as f32)
+            };
+            xray.render(
+                ctx.as_gles(),
+                areas,
+                blur_options,
+                noise,
+                saturation,
+                &mut |elem| push(elem.into()),
+            );
+            return;
+        }
+
+        if let Some(ends) = &geo.soft_ends {
+            let transparent = Color {
+                a: 0.,
+                ..self.color
+            };
+            // The gradient runs along x, from the transparent outer edge to the slab.
+            for (end, from, to) in [
+                (ends[0], transparent, self.color),
+                (ends[1], self.color, transparent),
+            ] {
+                let area = Rectangle::from_size(end.size);
+                let elem = BorderRenderElement::new(
+                    end.size,
+                    area,
+                    GradientInterpolation::default(),
+                    from,
+                    to,
+                    0.,
+                    area,
+                    0.,
+                    CornerRadius::default(),
+                    self.scale as f32,
+                    alpha,
+                )
+                .with_location(end.loc);
+                push(elem.into());
+            }
+        }
+
+        for (buffer, cell) in self.buffers.iter().zip(&geo.cells) {
+            let elem =
+                SolidColorRenderElement::from_buffer(buffer, cell.loc, alpha, Kind::Unspecified);
+            push(elem.into());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config(column_fill: MatColumnFill, ends: MatEnds) -> niri_config::Mat {
+        niri_config::Mat {
+            off: false,
+            column_fill,
+            ends,
+            ..Default::default()
+        }
+    }
+
+    fn col(x: f64, width: f64, bottom: f64) -> MatColumn {
+        MatColumn { x, width, bottom }
+    }
+
+    fn view() -> Size<f64, Logical> {
+        Size::from((1920., 1080.))
+    }
+
+    fn geo(columns: &[MatColumn], config: &niri_config::Mat, scale: f64) -> MatGeometry {
+        // gaps 8, no bottom strut
+        mat_geometry(columns, config, 8., view(), 1080., scale).unwrap()
+    }
+
+    /// Checks that the cells partition the slab's x range exactly.
+    #[track_caller]
+    fn assert_partition(geo: &MatGeometry, scale: f64) {
+        let slab = geo.slab;
+        let mut x = slab.loc.x;
+        for cell in &geo.cells {
+            assert_eq!(cell.loc.x, x, "cell starts where the last ended");
+            assert!(cell.size.w >= 0.);
+            assert_eq!(cell.loc.y, 0.);
+            x = cell.loc.x + cell.size.w;
+            // boundaries sit on physical pixels
+            let phys = x * scale;
+            assert!((phys - phys.round()).abs() < 1e-6, "{x} at scale {scale}");
+        }
+        assert!((x - (slab.loc.x + slab.size.w)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn off_or_empty() {
+        let full = config(MatColumnFill::Full, MatEnds::Hard);
+        assert_eq!(mat_geometry(&[], &full, 8., view(), 1080., 1.), None);
+
+        let off = niri_config::Mat::default();
+        let columns = [col(8., 100., 1072.)];
+        assert_eq!(mat_geometry(&columns, &off, 8., view(), 1080., 1.), None);
+    }
+
+    #[test]
+    fn one_column() {
+        let full = config(MatColumnFill::Full, MatEnds::Hard);
+        let geo = geo(&[col(8., 100., 1072.)], &full, 1.);
+        assert_eq!(
+            geo.slab,
+            Rectangle::new((0., 0.).into(), (116., 1080.).into())
+        );
+        assert_eq!(geo.cells, vec![geo.slab]);
+        assert_eq!(geo.soft_ends, None);
+    }
+
+    #[test]
+    fn partition_at_fractional_scales() {
+        let tiles = config(MatColumnFill::Tiles, MatEnds::Hard);
+        let columns = [
+            col(8.3, 633.37, 500.),
+            col(649.67, 633.37, 700.),
+            col(1291.04, 412.1, 300.),
+        ];
+        for scale in [1., 1.25, 1.5] {
+            let geo = geo(&columns, &tiles, scale);
+            assert_eq!(geo.cells.len(), 3);
+            assert_partition(&geo, scale);
+        }
+    }
+
+    #[test]
+    fn moving_columns_leave_no_holes() {
+        let tiles = config(MatColumnFill::Tiles, MatEnds::Hard);
+        // overlapping mid-swap, given out of order
+        let overlap = [col(300., 400., 500.), col(8., 400., 700.)];
+        // pulled apart
+        let apart = [col(8., 400., 500.), col(600., 400., 700.)];
+        for columns in [&overlap[..], &apart[..]] {
+            for scale in [1., 1.25, 1.5] {
+                assert_partition(&geo(columns, &tiles, scale), scale);
+            }
+        }
+        // a narrow column inside a wide one's span
+        let nested = [col(8., 1000., 500.), col(200., 100., 700.)];
+        assert_partition(&geo(&nested, &tiles, 1.), 1.);
+    }
+
+    #[test]
+    fn heights() {
+        let full = config(MatColumnFill::Full, MatEnds::Hard);
+        let tiles = config(MatColumnFill::Tiles, MatEnds::Hard);
+        let columns = [col(8., 400., 500.), col(416., 400., 1072.)];
+
+        // full: one slab cell, full view height regardless of the working area
+        let geo_full = mat_geometry(&columns, &full, 8., view(), 1000., 1.).unwrap();
+        assert_eq!(geo_full.cells, vec![geo_full.slab]);
+        assert_eq!(geo_full.slab.size.h, 1080.);
+
+        // tiles: a skyline; the full-height column reaches the view bottom past a bottom strut
+        let geo_tiles = mat_geometry(&columns, &tiles, 8., view(), 1000., 1.).unwrap();
+        let heights: Vec<f64> = geo_tiles.cells.iter().map(|c| c.size.h).collect();
+        assert_eq!(heights, [508., 1080.]);
+    }
+
+    #[test]
+    fn soft_ends() {
+        let soft = config(MatColumnFill::Tiles, MatEnds::Soft);
+        let columns = [col(8., 400., 500.), col(416., 400., 700.)];
+        let geo = geo(&columns, &soft, 1.);
+        let [left, right] = geo.soft_ends.unwrap();
+        let slab = geo.slab;
+        assert_eq!(left.loc.x + left.size.w, slab.loc.x);
+        assert_eq!(right.loc.x, slab.loc.x + slab.size.w);
+        assert_eq!((left.size.w, right.size.w), (96., 96.));
+        assert_eq!((left.size.h, right.size.h), (508., 708.));
+    }
+}

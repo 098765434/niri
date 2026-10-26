@@ -24,6 +24,7 @@ pub struct Layout {
     pub gaps: f64,
     pub struts: Struts,
     pub background_color: Color,
+    pub mat: Mat,
 }
 
 impl Default for Layout {
@@ -52,6 +53,7 @@ impl Default for Layout {
                 PresetSize::Proportion(2. / 3.),
             ],
             background_color: DEFAULT_BACKGROUND_COLOR,
+            mat: Mat::default(),
         }
     }
 }
@@ -68,6 +70,7 @@ impl MergeWith<LayoutPart> for Layout {
             always_center_single_column,
             empty_workspace_above_first,
             gaps,
+            mat,
         );
 
         merge_clone!(
@@ -126,6 +129,94 @@ pub struct LayoutPart {
     pub struts: Option<Struts>,
     #[knuffel(child)]
     pub background_color: Option<Color>,
+    #[knuffel(child)]
+    pub mat: Option<MatPart>,
+}
+
+/// A backing painted behind the scrolling layout's windows.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Mat {
+    pub off: bool,
+    pub color: Color,
+    pub overview: MatOverview,
+    pub column_fill: MatColumnFill,
+    pub ends: MatEnds,
+    pub soft_end_length: f64,
+    /// The named material to draw the mat as glass with.
+    pub material: Option<String>,
+}
+
+impl Default for Mat {
+    fn default() -> Self {
+        Self {
+            off: true,
+            color: Color::new_unpremul(0., 0., 0., 1.),
+            overview: MatOverview::Fade,
+            column_fill: MatColumnFill::Full,
+            ends: MatEnds::Hard,
+            soft_end_length: 96.,
+            material: None,
+        }
+    }
+}
+
+impl MergeWith<MatPart> for Mat {
+    fn merge_with(&mut self, part: &MatPart) {
+        // writing the block turns the mat on
+        self.off = part.off;
+
+        merge!((self, part), soft_end_length);
+        merge_clone!((self, part), color, overview, column_fill, ends);
+        merge_clone_opt!((self, part), material);
+    }
+}
+
+#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
+pub struct MatPart {
+    #[knuffel(child)]
+    pub off: bool,
+    #[knuffel(child)]
+    pub color: Option<Color>,
+    #[knuffel(child, unwrap(argument))]
+    pub overview: Option<MatOverview>,
+    #[knuffel(child, unwrap(argument))]
+    pub column_fill: Option<MatColumnFill>,
+    #[knuffel(child, unwrap(argument))]
+    pub ends: Option<MatEnds>,
+    #[knuffel(child, unwrap(argument))]
+    pub soft_end_length: Option<FloatOrInt<0, 65535>>,
+    #[knuffel(child, unwrap(argument))]
+    pub material: Option<String>,
+}
+
+/// What the mat does as the overview opens.
+#[derive(knuffel::DecodeScalar, Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub enum MatOverview {
+    /// Fade out, showing the gaps over the wallpaper.
+    #[default]
+    Fade,
+    /// Stay.
+    Keep,
+}
+
+/// How far down the mat goes under a column.
+#[derive(knuffel::DecodeScalar, Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub enum MatColumnFill {
+    /// The full view height.
+    #[default]
+    Full,
+    /// One gap past the column's tiles.
+    Tiles,
+}
+
+/// How the mat ends past the outermost columns.
+#[derive(knuffel::DecodeScalar, Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub enum MatEnds {
+    /// A sharp edge one gap past the columns.
+    #[default]
+    Hard,
+    /// The same edge, then a fade into the wallpaper.
+    Soft,
 }
 
 #[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
