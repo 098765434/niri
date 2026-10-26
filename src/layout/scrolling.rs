@@ -11,6 +11,7 @@ use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
 
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
+use super::mat::{Mat, MatColumn, MatRenderElement};
 use super::monitor::InsertPosition;
 use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
@@ -70,6 +71,9 @@ pub struct ScrollingSpace<W: LayoutElement> {
     /// Windows in the closing animation.
     closing_windows: Vec<ClosingWindow>,
 
+    /// Backing behind the columns.
+    mat: Mat,
+
     /// View size for this space.
     view_size: Size<f64, Logical>,
 
@@ -99,6 +103,7 @@ niri_render_elements! {
         Tile = TileRenderElement<R>,
         ClosingWindow = ClosingWindowRenderElement,
         TabIndicator = TabIndicatorRenderElement,
+        Mat = MatRenderElement,
     }
 }
 
@@ -301,6 +306,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             activate_prev_column_on_removal: None,
             view_offset_to_restore: None,
             closing_windows: Vec::new(),
+            mat: Mat::new(),
             view_size,
             working_area,
             parent_area,
@@ -407,6 +413,27 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             let view_rect = Rectangle::new(col_pos, view_size);
             col.update_render_elements(is_active, view_rect);
         }
+
+        let view_x = view_pos.x;
+        let columns: Vec<_> = zip(&self.columns, self.column_xs(self.data.iter().copied()))
+            .map(|(col, col_x)| {
+                let (left, right, bottom) = col.mat_extent();
+                let x = col_x + col.render_offset().x - view_x;
+                MatColumn {
+                    x: x + left,
+                    width: right - left,
+                    bottom,
+                }
+            })
+            .collect();
+        self.mat.update(
+            &columns,
+            &self.options.layout.mat,
+            self.options.layout.gaps,
+            view_size,
+            self.working_area.loc.y + self.working_area.size.h,
+            self.scale,
+        );
     }
 
     pub fn tiles(&self) -> impl Iterator<Item = &Tile<W>> + '_ {
@@ -2978,6 +3005,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         mut ctx: RenderCtx<R>,
         xray_pos: XrayPos,
         focus_ring: bool,
+        mat_alpha: f32,
         push: &mut dyn FnMut(ScrollingSpaceRenderElement<R>),
     ) {
         let scale = Scale::from(self.scale);
@@ -3037,6 +3065,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 });
             }
         }
+
+        // Pushed last, so it's below every tile and its decorations.
+        self.mat
+            .render(ctx, xray_pos, mat_alpha, &self.options, &mut |elem| {
+                push(elem.into())
+            });
     }
 
     pub fn window_under(&self, pos: Point<f64, Logical>) -> Option<(&W, HitType)> {
@@ -4798,6 +4832,35 @@ impl<W: LayoutElement> Column<W> {
         }
 
         tiles_width
+    }
+
+    /// The column's visible extent for the workspace mat, from the animated tile sizes: its left
+    /// and right edges and the bottom of its lowest visible tile, relative to the column.
+    fn mat_extent(&self) -> (f64, f64, f64) {
+        let mut left = f64::INFINITY;
+        let mut right = f64::NEG_INFINITY;
+        let mut bottom = 0.;
+        for (tile, tile_off, visible) in self.tiles_in_render_order() {
+            if !visible {
+                continue;
+            }
+            let pos = tile_off + tile.render_offset();
+            let size = tile.animated_tile_size();
+            left = f64::min(left, pos.x);
+            right = f64::max(right, pos.x + size.w);
+            bottom = f64::max(bottom, pos.y + size.h);
+        }
+
+        if self.display_mode == ColumnDisplay::Tabbed && self.sizing_mode().is_normal() {
+            let extra_size = self.tab_indicator.extra_size(self.tiles.len(), self.scale);
+            if extra_size.w > 0. {
+                let area = self.tab_indicator_area();
+                left = f64::min(left, area.loc.x);
+                right = f64::max(right, area.loc.x + area.size.w);
+            }
+        }
+
+        (left, right, bottom)
     }
 
     fn focus_index(&mut self, index: u8) {

@@ -3,7 +3,7 @@ use std::iter::zip;
 use std::rc::Rc;
 use std::time::Duration;
 
-use niri_config::{CornerRadius, LayoutPart};
+use niri_config::{CornerRadius, LayoutPart, MatOverview};
 use smithay::backend::renderer::element::utils::{
     CropRenderElement, Relocate, RelocateRenderElement, RescaleRenderElement,
 };
@@ -1704,6 +1704,16 @@ impl<W: LayoutElement> Monitor<W> {
 
         let zoom = self.overview_zoom();
 
+        // The mat fades out as the overview opens, following its progress.
+        let mat_alpha = match self.options.layout.mat.overview {
+            MatOverview::Fade => {
+                self.overview_progress
+                    .as_ref()
+                    .map_or(1., |p| 1. - p.clamped_value().clamp(0., 1.)) as f32
+            }
+            MatOverview::Keep => 1.,
+        };
+
         let insert_hint_render_loc = self
             .insert_hint_render_loc
             .filter(|_| !self.options.layout.insert_hint.off);
@@ -1745,7 +1755,7 @@ impl<W: LayoutElement> Monitor<W> {
                 }
             }
 
-            ws.render_scrolling(ctx.r(), xray_pos, focus_ring, push!());
+            ws.render_scrolling(ctx.r(), xray_pos, focus_ring, mat_alpha, push!());
         }
     }
 

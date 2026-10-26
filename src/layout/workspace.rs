@@ -1643,13 +1643,17 @@ impl<W: LayoutElement> Workspace<W> {
         ctx: RenderCtx<R>,
         xray_pos: XrayPos,
         focus_ring: bool,
+        mat_alpha: f32,
         push: &mut dyn FnMut(WorkspaceRenderElement<R>),
     ) {
         let scrolling_focus_ring = focus_ring && !self.floating_is_active();
-        self.scrolling
-            .render(ctx, xray_pos, scrolling_focus_ring, &mut |elem| {
-                push(elem.into())
-            });
+        self.scrolling.render(
+            ctx,
+            xray_pos,
+            scrolling_focus_ring,
+            mat_alpha,
+            &mut |elem| push(elem.into()),
+        );
     }
 
     pub fn render_floating<R: NiriRenderer>(
