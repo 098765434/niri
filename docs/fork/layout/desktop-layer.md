@@ -19,7 +19,7 @@ As with the backdrop, the surface only shows through workspaces with a transpare
 `background-color` (in `layout`), and only *background* layer surfaces that ignore exclusive zones
 can be one.
 
-The `DesktopObscured` event on the [IPC](../../wiki/IPC.md) event stream tells a desktop layer when nothing
+The [`DesktopObscured`](../ipc/events.md#desktopobscured) event on the IPC event stream tells a desktop layer when nothing
 under the workspaces shows on its output, so it can stop drawing.
 
 ```kdl
@@ -82,22 +82,8 @@ The wallpaper itself already does the first part, from `place-within-backdrop` w
 DesktopObscured { output: String, obscured: bool }
 ```
 
-Sent per output when the value changes, from `ipc_refresh_desktop_obscured` (part of
-`ipc_refresh_layout`, which runs every event loop pass), and replicated to new clients by
-`DesktopObscuredState`. `Layout::is_desktop_obscured(output)` is true when:
-
-- the overview is fully open (progress 1), where desktop layers have faded out; or
-- the overview is closed, no workspace switch is in progress on the output
-  (`Monitor::is_desktop_covered`), and the active workspace's visible tiles cover its working
-  area (`Workspace::is_working_area_covered`).
-
-The coverage test grows each tile by `layout.gaps` on every side, since the mat fills the gaps, and
-subtracts the tiles from the working area in whole logical pixels (area rounded inward, tiles
-outward). A fullscreen or maximized window covers it, as do columns that fill the view. Windows
-are taken as opaque: a translucent or frosted window that covers the area counts as covering.
-
-A switch in progress or an overview anywhere between closed and open counts as visible: either
-shows what's under the workspaces.
+Sent per output when the value changes, and replicated to new clients. When it is true, and how
+the coverage test works, is in [ipc/events.md](../ipc/events.md#desktopobscured).
 
 ### 4. Client
 

@@ -19,7 +19,7 @@ stock upstream; the fork is a thin series of commits on top of a tagged release.
 
 | Feature | Kind | Commits | Docs | Upstreamable? |
 |---|---|---|---|---|
-| [Gesture-progress IPC events](#gesture-progress-ipc-events) | feature | `59fe93e4` | [design](docs/fork/design/gesture-ipc.md) | maybe — generic IPC, but per-frame events are chatty |
+| [Gesture-progress IPC events](#gesture-progress-ipc-events) | feature | `59fe93e4` | [reference](docs/fork/ipc/events.md), [design](docs/fork/design/gesture-ipc.md) | maybe — generic IPC, but per-frame events are chatty |
 | [Mod-held window swipes](#mod-held-three-finger-window-swipes) | feature | `f4367f88`, `4177c74f` | [design](docs/fork/gestures/mod-swipe.md), [usage](docs/fork/gestures/mod-swipe.md#usage) | maybe — behind a config switch |
 | [Blur shapes + glass materials](#rounded-fading-blur-shapes-and-liquid-glass) | feature | `13d945b5`, `454d9751`, `74b623a7`, `3cde7327` | [design](docs/fork/effects/blur-shapes.md), [materials](docs/fork/effects/materials.md) | no as-is — private protocol; GPL-3.0 shader lineage |
 | Vibrancy (`niri-vibrancy-v1`) | feature | (this branch) | [design](docs/fork/effects/vibrancy.md) | no as-is: private protocol |

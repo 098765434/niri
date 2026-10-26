@@ -1,7 +1,10 @@
 # Spec: Live gesture-progress IPC events for a niri fork
 
-Status: implemented on `ocbk` (`59fe93e4`) · Target: niri fork + Amane shell client · Scope: expose per-frame
+Status: implemented in `59fe93e4` · Target: niri fork + Amane shell client · Scope: expose per-frame
 gesture progress over the niri IPC event stream so an external bar can animate in sync.
+
+This is the original spec, kept as design history. The reference for the events as built is
+[ipc/events.md](../ipc/events.md).
 
 ## 1. Goal
 
@@ -25,7 +28,7 @@ not compute anything new.
 - **Backpressure will drop a slow client.** Each client has a bounded channel of
   `EVENT_STREAM_BUFFER_SIZE = 64`. If it fills (client reads too slowly), `send_event`
   **disconnects that client** ("reading events too slowly"). Per-frame events at 60–144 Hz
-  are fine *only* if the client drains promptly — see §7.
+  are fine *only* if the client drains promptly (§7).
 - **Coalesce before sending.** Emit only when the value changed past an epsilon, so a
   resting compositor emits nothing.
 - **Initial state is replicated.** New event-stream clients get the current state up front
@@ -230,6 +233,8 @@ pub fn ipc_refresh_view_offset(&mut self) {
 
 ### 5.5 Optional: pixel-exact column geometry (low frequency)
 
+**Not built.** `ColumnsGeometryChanged` was never added; the idea is kept here for reference.
+
 `view_pos` alone is enough for parallax / sliding an indicator. To place one bar item per
 column *exactly*, the client also needs each column's x and width (same coordinate space;
 on-screen left edge of column *i* = `col_x[i] - view_pos`). This changes only when columns
@@ -285,45 +290,11 @@ pub fn ipc_refresh_workspace_switch(&mut self) {
 
 ## 7. Client integration (Amane shell)
 
-Parse raw JSON by key — no dependency on the forked `niri-ipc`. The socket reader must do
-nothing but store into shared state and loop, or the 64-event buffer fills and niri drops
-you mid-gesture. Do all rendering on a separate frame loop that reads these values.
-
-```rust
-// Shared, lock-free. Scale floats to ints to store atomically.
-pub static OVERVIEW_PROGRESS: AtomicU32 = AtomicU32::new(0);     // * 1000
-pub static VIEW_POS:          AtomicI64 = AtomicI64::new(0);     // * 100
-pub static ACTIVE_COL:        AtomicU32 = AtomicU32::new(0);
-pub static WS_IDX:            AtomicI64 = AtomicI64::new(0);     // * 1000
-pub static ACTIVE_WS:         AtomicU32 = AtomicU32::new(0);
-
-// In the event-stream read loop, per line -> serde_json::Value `v`:
-if let Some(o) = v.get("OverviewProgress") {
-    if let Some(p) = o.get("progress").and_then(|x| x.as_f64()) {
-        OVERVIEW_PROGRESS.store((p * 1000.0) as u32, Ordering::Relaxed);
-    }
-} else if let Some(o) = v.get("ViewOffsetChanged") {
-    if let Some(p) = o.get("view_pos").and_then(|x| x.as_f64()) {
-        VIEW_POS.store((p * 100.0) as i64, Ordering::Relaxed);
-    }
-    if let Some(i) = o.get("active_column_idx").and_then(|x| x.as_u64()) {
-        ACTIVE_COL.store(i as u32, Ordering::Relaxed);
-    }
-} else if let Some(o) = v.get("WorkspaceSwitchProgress") {
-    if let Some(p) = o.get("workspace_idx").and_then(|x| x.as_f64()) {
-        WS_IDX.store((p * 1000.0) as i64, Ordering::Relaxed);
-    }
-    if let Some(i) = o.get("active_workspace_idx").and_then(|x| x.as_u64()) {
-        ACTIVE_WS.store(i as u32, Ordering::Relaxed);
-    }
-}
-```
-
-Render loop: map `OVERVIEW_PROGRESS` → bar expansion; use `ACTIVE_COL` / `ACTIVE_WS` to pick
-the highlighted item and the fractional part of `VIEW_POS` / `WS_IDX` to slide the indicator.
-Optionally keep a light spring over each incoming value (≈1 frame of give) so a late/dropped
-packet doesn't show as a stutter — there is always ~1 frame of socket latency, so expect the
-bar to trail the compositor by about one frame regardless.
+The client lives in amane: see its
+[compositor services](https://github.com/098765434/amane/blob/ocbk/docs/fork/compositor/services.md).
+In short, it parses the JSON by key, its socket reader only stores the values and reads on
+(or the 64-event buffer fills and niri drops it mid-gesture), and rendering happens on a
+separate frame loop.
 
 Put the bar on the **top** layer: in the overview, background/bottom layers zoom with the
 workspaces while top/overlay stay put — which is what you want for a bar animating itself.
@@ -373,14 +344,3 @@ input {
 4. Stress: hold a fast continuous swipe for ~10 s with a deliberately slow client; confirm
    the client is *not* dropped (buffer drains) — if it is, move all work off the read loop.
 5. Multi-monitor: confirm `output` matches the focused output and switches with focus.
-
-## 10. Open questions / risks
-
-- Exact `EventStreamStatePart` trait signature and `EventStreamState` wiring — match the
-  existing `overview` part in the fork's checked-out version.
-- The focused-`Monitor` accessor on `Layout` may need a small public getter if one isn't
-  already exposed; `active_output()` + the monitor lookup used by `Request::FocusedOutput`
-  is the pattern to follow.
-- Rebasing onto upstream niri: these are additive (new enum variants, new refreshers, new
-  getters), so conflicts should be limited to the `Event` enum, `EventStreamState`, and
-  `ipc_refresh_layout`.
