@@ -240,3 +240,8 @@ Defined as `ModSwipe` in `niri-config/src/gestures.rs`; the config test in
 - Floating windows don't step width; they could use the floating preset widths later.
 - The gesture acts on the focused window on the active monitor, not the window under the
   cursor.
+
+### 8. Files
+
+`niri-config/src/gestures.rs`, `src/input/mod.rs`,
+`src/layout/{window_swipe,mod,tile,closing_window,scrolling,floating,workspace,tests}.rs`.
