@@ -114,7 +114,8 @@ Three gaps, each animating with the overview's open and close (gestures included
 them set, the spacing is stock.
 
 - `layout { workspace-gap }`: between workspaces in the normal view (stock: 10% of the
-  height). `overview { workspace-gap }`: between workspaces in the overview (stock: the normal
+  height), measured outside the bars' exclusive zones so they don't show as a band while
+  switching; negative values overlap. `overview { workspace-gap }`: between workspaces in the overview (stock: the normal
   gap zoomed out). `Monitor::workspace_gap` interpolates between them by how far the zoom has
   gone.
 - `overview { window-gap }`: between windows in the overview, on screen. The scrolling layout

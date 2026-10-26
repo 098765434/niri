@@ -22,7 +22,8 @@ pub struct Layout {
     pub empty_workspace_above_first: bool,
     pub default_column_display: ColumnDisplay,
     pub gaps: f64,
-    /// Space between workspaces in the normal view, on screen; `None` for 10% of the height.
+    /// Space between workspaces in the normal view, between their areas outside the bars'
+    /// exclusive zones; `None` for 10% of the height. Negative values overlap.
     pub workspace_gap: Option<f64>,
     pub struts: Struts,
     pub background_color: Color,
@@ -133,7 +134,7 @@ pub struct LayoutPart {
     #[knuffel(child, unwrap(argument))]
     pub gaps: Option<FloatOrInt<0, 65535>>,
     #[knuffel(child, unwrap(argument))]
-    pub workspace_gap: Option<FloatOrInt<0, 65535>>,
+    pub workspace_gap: Option<FloatOrInt<-65535, 65535>>,
     #[knuffel(child)]
     pub struts: Option<Struts>,
     #[knuffel(child)]
