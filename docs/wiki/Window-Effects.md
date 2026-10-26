@@ -56,6 +56,7 @@ materials {
         bevel 16          // how wide the curved edge is, logical px
         dispersion 0.3    // red/blue parting at the edge, 0-1
         rim 0.6           // lit rim brightness, 0-1
+        glow 0.15         // soft glow over the bevel's lit sides, 0-1; a quarter of rim unless set
         light-angle 225   // where the light comes from, degrees clockwise from the right
         far-rim 0.35      // light caught on the far edge, 0-1
         specular 0.5      // highlight where the light hits the edge, 0-1
@@ -79,6 +80,8 @@ The reading is coarse: an 8×8 version of the shape's area, read back from the G
 It works for non-xray shapes only, and it's off by default.
 
 With `blur-passes` or `blur-offset` set, the backdrop behind that material's shapes is blurred with them instead of `blur {}`'s, so big glass can frost more than small glass, as Apple's does: Figma's macOS kit frosts small glass at 6 and medium and large glass at 16.
+
+The lens bends the backdrop in from past the shape's edge, as Apple's glass does, so a rim continues what lies beside the shape; the blurred capture behind a surface's shapes reaches `refraction` further out for it. `rim` is a hairline at the edge, brightest facing `light-angle` and caught again on the far side by `far-rim`; `glow` is a soft haze over the bevel on those sides. Apple's glass lights the rim from the top with an opposite fill light (`light-angle 270`, `far-rim 0.5`) and has next to no glow.
 
 `tone` below 1 squeezes the backdrop's brightness toward the tint's side before the tint is laid on, keeping its hue: under a dark tint the backdrop keeps 0 to `tone` of its brightness, under a light one it stays within `tone` of white. Like the darken and lighten layers in Apple's materials, this keeps a thin tint readable over any wallpaper. It only applies to shapes with a tint.
 Each distinct blur costs a blur of its own: for xray, one more blur of the backdrop, redone only when it changes; for non-xray shapes, one more capture and blur of the area behind that blur's shapes, every frame they draw.

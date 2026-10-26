@@ -43,8 +43,8 @@ uniform vec4 glass_tint;
 uniform vec4 glass_shape;
 // light direction (x, y, towards the light), far rim, specular
 uniform vec4 glass_light;
-// tint strength, adaptive tint, tone
-uniform vec3 glass_tint_params;
+// tint strength, adaptive tint, tone, glow
+uniform vec4 glass_tint_params;
 
 float niri_rounding_alpha(vec2 coords, vec2 size, vec4 corner_radius);
 vec4 postprocess(vec4 color);
@@ -84,9 +84,10 @@ void main() {
             - edge_distance(p - vec2(0.0, 1.0), half_size, corner_radius));
     vec2 normal = length(grad) > 0.0001 ? normalize(grad) : vec2(0.0);
 
-    // At the lip the glass magnifies what's behind it, drawing it in from further
-    // inside, as a thick lens does; it never shows what lies past its own edge.
-    vec2 offset = -normal * lip * glass_shape.x;
+    // At the lip the glass bends what's beside it in over the edge, as Apple's
+    // does: the rim continues the backdrop around the shape. The capture reaches
+    // `refraction` past the shape for it (render_shapes grows its bounds).
+    vec2 offset = normal * lip * glass_shape.x;
     vec4 color;
     if (glass_shape.z > 0.001 && lip > 0.001) {
         float parting = glass_shape.z * 0.3;
@@ -130,7 +131,8 @@ void main() {
     float near = pow(max(facing, 0.0), 2.0);
     float far = pow(max(-facing, 0.0), 3.0) * glass_light.z;
     float line = 1.0 - smoothstep(0.0, 1.5, -d);
-    float lit = glass_shape.w * (line * (0.2 + 0.8 * near + far) + lip * 0.25 * (near + far));
+    float lit = glass_shape.w * line * (0.2 + 0.8 * near + far)
+        + glass_tint_params.w * lip * (near + far);
     color.rgb = mix(color.rgb, vec3(color.a), clamp(lit, 0.0, 1.0));
     color.rgb += vec3(glass_light.w * line * pow(max(facing, 0.0), 8.0)) * color.a;
 

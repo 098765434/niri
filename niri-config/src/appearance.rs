@@ -1130,6 +1130,10 @@ pub struct Material {
     /// How bright the lit rim is, 0 to 1.
     #[knuffel(child, unwrap(argument))]
     pub rim: Option<FloatOrInt<0, 1>>,
+    /// How bright the soft glow over the bevel's lit sides is, 0 to 1. A quarter of `rim`
+    /// unless set; 0 leaves only the rim's hairline, as Apple's glass has.
+    #[knuffel(child, unwrap(argument))]
+    pub glow: Option<FloatOrInt<0, 1>>,
     /// Where the light comes from, in degrees clockwise from the right (225 is the top left).
     #[knuffel(child, unwrap(argument))]
     pub light_angle: Option<FloatOrInt<0, 360>>,
@@ -1181,6 +1185,7 @@ pub struct MaterialParams {
     pub bevel: f32,
     pub dispersion: f32,
     pub rim: f32,
+    pub glow: f32,
     pub light_angle: f32,
     pub far_rim: f32,
     pub specular: f32,
@@ -1205,6 +1210,7 @@ impl Material {
             bevel: get(self.bevel, 16.),
             dispersion: unit(self.dispersion, 0.25),
             rim: unit(self.rim, 0.5),
+            glow: unit(self.glow, unit(self.rim, 0.5) * 0.25),
             light_angle: self.light_angle.map_or(225., |v| v.0 as f32),
             far_rim: unit(self.far_rim, 0.35),
             specular: unit(self.specular, 0.4),

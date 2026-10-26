@@ -676,6 +676,7 @@ mod tests {
                 }
                 material "frosted" {
                     rim 0
+                    glow 0.1
                     blur-passes 2
                     blur-offset 1.5
                     tone 0.6
@@ -698,6 +699,8 @@ mod tests {
         assert_eq!((frosted.blur_passes, frosted.blur_offset), (Some(2), Some(1.5)));
         // the tone keeps the whole brightness range unless set
         assert_eq!((glass.tone, frosted.tone), (1., 0.6));
+        // the glow follows the rim unless set
+        assert_eq!((glass.glow, frosted.glow), (0.125, 0.1));
     }
 
     #[test]
