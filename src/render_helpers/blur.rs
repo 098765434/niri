@@ -28,6 +28,18 @@ pub struct BlurOptions {
     pub offset: f64,
 }
 
+impl BlurOptions {
+    /// These options with what `material` sets in their place.
+    pub fn for_material(self, material: Option<&niri_config::MaterialParams>) -> Self {
+        Self {
+            passes: material.and_then(|m| m.blur_passes).unwrap_or(self.passes),
+            offset: material
+                .and_then(|m| m.blur_offset)
+                .map_or(self.offset, f64::from),
+        }
+    }
+}
+
 impl From<niri_config::Blur> for BlurOptions {
     fn from(config: niri_config::Blur) -> Self {
         Self {
@@ -338,5 +350,43 @@ impl Blur {
         })?;
 
         Ok(self.textures[0].clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_material_overrides_what_it_sets() {
+        let base = BlurOptions {
+            passes: 1,
+            offset: 1.,
+        };
+        let mut material = niri_config::Material {
+            name: String::from("glass"),
+            ..Default::default()
+        }
+        .params();
+        assert_eq!(base.for_material(None), base);
+        assert_eq!(base.for_material(Some(&material)), base);
+
+        material.blur_passes = Some(2);
+        assert_eq!(
+            base.for_material(Some(&material)),
+            BlurOptions {
+                passes: 2,
+                offset: 1.
+            }
+        );
+
+        material.blur_offset = Some(1.5);
+        assert_eq!(
+            base.for_material(Some(&material)),
+            BlurOptions {
+                passes: 2,
+                offset: 1.5
+            }
+        );
     }
 }

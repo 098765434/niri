@@ -32,10 +32,25 @@ pub struct EffectBuffer {
     offscreen: Option<Offscreen>,
     /// Blurring program, if available.
     blur: Option<Blur>,
+    /// Blurs with other options than `blur_options`, for materials that frost more or less
+    /// than `blur {}`, most recently asked for last.
+    variants: Vec<Variant>,
 
     /// Commit counter that takes into account both original and blurred texture changes.
     commit_counter: CommitCounter,
 }
+
+/// The contents blurred with options of a material's own.
+#[derive(Debug)]
+struct Variant {
+    options: BlurOptions,
+    blur: Blur,
+    /// Reset to `None` along with the main blurred texture.
+    blurred: Option<GlesTexture>,
+}
+
+/// How many blur variants a buffer keeps; the least recently asked for goes first.
+const MAX_VARIANTS: usize = 4;
 
 #[derive(Debug)]
 enum Elements {
@@ -82,6 +97,7 @@ impl EffectBuffer {
             elements: Elements::default(),
             offscreen: None,
             blur: None,
+            variants: Vec::new(),
             commit_counter: CommitCounter::default(),
         }
     }
@@ -140,6 +156,17 @@ impl EffectBuffer {
     }
 
     pub fn prepare(&mut self, renderer: &mut GlesRenderer, blur: bool) -> bool {
+        self.prepare_with(renderer, blur, &[])
+    }
+
+    /// [`prepare`](Self::prepare), and blurs with each of `variants` too, for materials with
+    /// options of their own. Options the same as the buffer's need no variant.
+    pub fn prepare_with(
+        &mut self,
+        renderer: &mut GlesRenderer,
+        blur: bool,
+        variants: &[BlurOptions],
+    ) -> bool {
         if let Err(err) = self.prepare_offscreen(renderer) {
             warn!("error preparing offscreen: {err:?}");
             return false;
@@ -150,9 +177,63 @@ impl EffectBuffer {
                 warn!("error preparing blur: {err:?}");
                 return false;
             }
+            for options in variants {
+                if *options == self.blur_options {
+                    continue;
+                }
+                if let Err(err) = self.prepare_variant(renderer, *options) {
+                    warn!("error preparing blur variant: {err:?}");
+                }
+            }
         }
 
         true
+    }
+
+    fn prepare_variant(
+        &mut self,
+        renderer: &mut GlesRenderer,
+        options: BlurOptions,
+    ) -> anyhow::Result<()> {
+        let offscreen = self.offscreen.as_ref().context("missing offscreen")?;
+
+        self.variants
+            .retain(|v| v.blur.context_id() == renderer.context_id());
+
+        // most recently asked for last
+        let variant = match self.variants.iter().position(|v| v.options == options) {
+            Some(at) => self.variants.remove(at),
+            None => {
+                let Some(blur) = Blur::new(renderer) else {
+                    // Missing blur shader.
+                    return Ok(());
+                };
+                Variant {
+                    options,
+                    blur,
+                    blurred: None,
+                }
+            }
+        };
+        if self.variants.len() >= MAX_VARIANTS {
+            self.variants.remove(0);
+        }
+        let variant = {
+            self.variants.push(variant);
+            self.variants.last_mut().unwrap()
+        };
+
+        if variant.blurred.is_some() {
+            return Ok(());
+        }
+        variant
+            .blur
+            .prepare_textures(
+                |fourcc, size| renderer.create_buffer(fourcc, size),
+                &offscreen.texture,
+                options,
+            )
+            .context("error preparing blur textures")
     }
 
     fn prepare_offscreen(&mut self, renderer: &mut GlesRenderer) -> anyhow::Result<()> {
@@ -193,6 +274,7 @@ impl EffectBuffer {
             offscreen
         } else {
             trace!("creating new offscreen texture: {reason}");
+            unblur(&mut self.variants);
             let span = tracy_client::span!("creating effect offscreen texture");
             span.emit_text(reason);
 
@@ -224,6 +306,7 @@ impl EffectBuffer {
 
             self.commit_counter.increment();
             offscreen.blurred = None;
+            unblur(&mut self.variants);
         }
 
         // Render the elements if any.
@@ -251,8 +334,9 @@ impl EffectBuffer {
         if res.damage.is_some() {
             self.commit_counter.increment();
 
-            // Original texture changed; reset the blurred texture.
+            // Original texture changed; reset the blurred textures.
             offscreen.blurred = None;
+            unblur(&mut self.variants);
         }
 
         // Clear and put the storage back.
@@ -302,10 +386,38 @@ impl EffectBuffer {
     }
 
     pub fn render(&mut self, frame: &mut GlesFrame, blur: bool) -> anyhow::Result<GlesTexture> {
+        self.render_with(frame, blur, None)
+    }
+
+    /// [`render`](Self::render), blurred with `options` in place of the buffer's when given:
+    /// a variant [`prepare_with`](Self::prepare_with) prepared. One it didn't falls back to the
+    /// buffer's own blur.
+    pub fn render_with(
+        &mut self,
+        frame: &mut GlesFrame,
+        blur: bool,
+        options: Option<BlurOptions>,
+    ) -> anyhow::Result<GlesTexture> {
         let offscreen = self.offscreen.as_mut().context("offscreen is missing")?;
 
         if !blur {
             return Ok(offscreen.texture.clone());
+        }
+
+        let variant = options
+            .filter(|options| *options != self.blur_options)
+            .and_then(|options| self.variants.iter_mut().find(|v| v.options == options));
+        if let Some(variant) = variant {
+            if let Some(texture) = &variant.blurred {
+                return Ok(texture.clone());
+            }
+            let mut guard = frame.renderer();
+            let renderer = guard.as_mut();
+            let blurred = variant
+                .blur
+                .render(renderer, &offscreen.texture, variant.options)
+                .context("error rendering blur variant")?;
+            return Ok(variant.blurred.insert(blurred).clone());
         }
 
         let texture = if let Some(texture) = &offscreen.blurred {
@@ -321,5 +433,12 @@ impl EffectBuffer {
         };
 
         Ok(texture)
+    }
+}
+
+/// Drops the variants' blurred textures, for contents that changed.
+fn unblur(variants: &mut [Variant]) {
+    for variant in variants {
+        variant.blurred = None;
     }
 }

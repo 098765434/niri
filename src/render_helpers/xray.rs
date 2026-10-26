@@ -15,6 +15,7 @@ use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, T
 
 use crate::backend::tty::{TtyFrame, TtyRenderer, TtyRendererError};
 use crate::render_helpers::background_effect::{glass_uniforms, RenderParams};
+use crate::render_helpers::blur::BlurOptions;
 use crate::render_helpers::effect_buffer::EffectBuffer;
 use crate::render_helpers::renderer::AsGlesFrame as _;
 use crate::render_helpers::shaders::{mat3_uniform, Shaders};
@@ -80,6 +81,8 @@ pub struct XrayElement {
     material: Option<MaterialParams>,
     tint: [f32; 4],
     blur: bool,
+    /// The blur of the material, where it has its own; else the buffer's.
+    blur_options: Option<BlurOptions>,
     noise: f32,
     saturation: f32,
     bg_color: Color32F,
@@ -97,11 +100,12 @@ impl Xray {
     }
 
     /// Pushes the xray elements for each of `areas`, with its position against the backdrop.
+    /// `blur` is `blur {}`'s options, which a material may set its own in place of.
     pub fn render(
         &self,
         ctx: RenderCtx<GlesRenderer>,
         areas: Vec<(RenderParams, XrayPos)>,
-        blur: bool,
+        blur: Option<BlurOptions>,
         noise: f32,
         saturation: f32,
         push: &mut dyn FnMut(XrayElement),
@@ -110,9 +114,29 @@ impl Xray {
         let plain = shaders.postprocess_and_clip.clone();
         let glass = shaders.glass.clone();
 
+        // the blurs of materials with their own, prepared beside the buffers' own
+        let variants: Vec<BlurOptions> = match blur {
+            Some(base) => {
+                let mut variants = Vec::new();
+                for options in areas
+                    .iter()
+                    .map(|(params, _)| base.for_material(params.material.as_ref()))
+                    .filter(|options| *options != base)
+                {
+                    if !variants.contains(&options) {
+                        variants.push(options);
+                    }
+                }
+                variants
+            }
+            None => Vec::new(),
+        };
+        let blur_options = blur;
+        let blur = blur.is_some();
+
         let mut background = self.background[ctx.target as usize].borrow_mut();
         let prev = background.commit();
-        let background_ready = background.prepare(ctx.renderer, blur);
+        let background_ready = background.prepare_with(ctx.renderer, blur, &variants);
         if background_ready && background.commit() != prev {
             trace!("background damaged");
         }
@@ -128,6 +152,7 @@ impl Xray {
                 _ => (plain.clone(), None),
             };
             let noise = material.and_then(|m| m.noise).unwrap_or(noise);
+            let options = blur_options.map(|base| base.for_material(material.as_ref()));
             let saturation = material.and_then(|m| m.saturation).unwrap_or(saturation);
             let zoom = xray_pos.zoom;
             let pos_in_backdrop = xray_pos.pos_in_backdrop.upscale(zoom);
@@ -220,6 +245,7 @@ impl Xray {
                         material,
                         tint: params.tint,
                         blur,
+                        blur_options: options,
                         noise,
                         saturation,
                         bg_color: *bg_color,
@@ -236,7 +262,7 @@ impl Xray {
 
             let ready = *backdrop_ready.get_or_insert_with(|| {
                 let prev = backdrop.commit();
-                let ready = backdrop.prepare(ctx.renderer, blur);
+                let ready = backdrop.prepare_with(ctx.renderer, blur, &variants);
                 if ready && backdrop.commit() != prev {
                     trace!("backdrop damaged");
                 }
@@ -279,6 +305,7 @@ impl Xray {
                 material,
                 tint: params.tint,
                 blur,
+                blur_options: options,
                 noise,
                 saturation,
                 bg_color: self.backdrop_color,
@@ -351,7 +378,7 @@ impl RenderElement<GlesRenderer> for XrayElement {
         _cache: Option<&UserDataMap>,
     ) -> Result<(), GlesError> {
         let mut buffer = self.buffer.borrow_mut();
-        let texture = match buffer.render(frame, self.blur) {
+        let texture = match buffer.render_with(frame, self.blur, self.blur_options) {
             Ok(x) => x,
             Err(err) => {
                 warn!("error rendering effect buffer: {err:?}");

@@ -73,13 +73,15 @@ rounded rectangles, each with its own alpha, material and tint. It replaces an
 Materials are named liquid-glass looks defined in a `materials {}` config block and drawn by
 `glass.frag`: refraction with red/blue parting, a lit rim and an adaptive tint. A material can
 also materialize (its lens builds up as the shape fades in) and report the backdrop's brightness
-back to the client (protocol version 2). Layer and window rules can name a material too, for
+back to the client (protocol version 2). A material can blur its backdrop with passes and an
+offset of its own (`blur-passes`, `blur-offset`), so big glass frosts more than small; each
+distinct blur is one more blur per backdrop. Layer and window rules can name a material too, for
 surfaces that can't send shapes, such as pop-ups.
 
 - **Surface:** protocol `resources/niri-blur-shapes-v1.xml`; config `materials { material "…" { … } }`,
   and `background-effect { material "…" }` in rules.
 - **Files:** `src/protocols/{blur_shapes,raw,mod}.rs`, `src/handlers/background_effect.rs`,
-  `src/render_helpers/{background_effect,backdrop,xray,framebuffer_effect}.rs`,
+  `src/render_helpers/{background_effect,backdrop,blur,effect_buffer,xray,framebuffer_effect}.rs`,
   `src/{layer,window}/mapped.rs`,
   `src/render_helpers/shaders/{glass.frag,mod.rs}`, `src/niri.rs`,
   `niri-config/src/{appearance,lib,window_rule}.rs`, `docs/wiki/Window-Effects.md`,
