@@ -53,6 +53,9 @@ pub struct EventStreamState {
     /// State of the focused output's vertical workspace switch progress.
     pub workspace_switch: WorkspaceSwitchState,
 
+    /// State of whether each output's desktop is obscured.
+    pub desktop_obscured: DesktopObscuredState,
+
     /// State of the config.
     pub config: ConfigState,
 
@@ -123,6 +126,13 @@ pub struct WorkspaceSwitchState {
     pub seen: bool,
 }
 
+/// Whether each output's desktop is obscured, communicated over the event stream.
+#[derive(Debug, Default)]
+pub struct DesktopObscuredState {
+    /// Map from an output name to whether its desktop is obscured.
+    pub outputs: HashMap<String, bool>,
+}
+
 /// The config state communicated over the event stream.
 #[derive(Debug, Default)]
 pub struct ConfigState {
@@ -147,6 +157,7 @@ impl EventStreamStatePart for EventStreamState {
         events.extend(self.overview_progress.replicate());
         events.extend(self.view_offset.replicate());
         events.extend(self.workspace_switch.replicate());
+        events.extend(self.desktop_obscured.replicate());
         events.extend(self.config.replicate());
         events.extend(self.casts.replicate());
         events
@@ -160,6 +171,7 @@ impl EventStreamStatePart for EventStreamState {
         let event = self.overview_progress.apply(event)?;
         let event = self.view_offset.apply(event)?;
         let event = self.workspace_switch.apply(event)?;
+        let event = self.desktop_obscured.apply(event)?;
         let event = self.config.apply(event)?;
         let event = self.casts.apply(event)?;
         Some(event)
@@ -405,6 +417,28 @@ impl EventStreamStatePart for WorkspaceSwitchState {
                 self.workspace_idx = workspace_idx;
                 self.active_workspace_idx = active_workspace_idx;
                 self.seen = true;
+            }
+            event => return Some(event),
+        }
+        None
+    }
+}
+
+impl EventStreamStatePart for DesktopObscuredState {
+    fn replicate(&self) -> Vec<Event> {
+        self.outputs
+            .iter()
+            .map(|(output, obscured)| Event::DesktopObscured {
+                output: output.clone(),
+                obscured: *obscured,
+            })
+            .collect()
+    }
+
+    fn apply(&mut self, event: Event) -> Option<Event> {
+        match event {
+            Event::DesktopObscured { output, obscured } => {
+                self.outputs.insert(output, obscured);
             }
             event => return Some(event),
         }

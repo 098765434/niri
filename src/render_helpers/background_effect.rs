@@ -519,8 +519,13 @@ pub fn render_for_tile(
     effect: niri_config::BackgroundEffect,
     should_block_out: bool,
     xray_pos: XrayPos,
+    alpha: f32,
     push: &mut dyn FnMut(BackgroundEffectElement),
 ) {
+    if alpha <= 0. {
+        return;
+    }
+
     with_states(surface, |states| {
         let background_effect = SurfaceBackgroundEffect::get(states);
         let mut background_effect = background_effect.0.lock().unwrap();
@@ -559,7 +564,8 @@ pub fn render_for_tile(
             let areas: Vec<_> =
                 render_params_for_shapes(shapes, scale, shape_geo, surface_anim_scale)
                     .into_iter()
-                    .map(|params| {
+                    .map(|mut params| {
+                        params.alpha *= alpha;
                         let pos = xray_pos.offset(params.geometry.loc - geometry.loc);
                         (params, pos)
                     })
@@ -604,6 +610,7 @@ pub fn render_for_tile(
             }
         }
 
+        params.alpha *= alpha;
         let bounds = params.geometry;
         let xray_pos = xray_pos.offset(params.geometry.loc - geometry.loc);
         background_effect.render(ctx, ns, bounds, vec![(params, xray_pos)], push);

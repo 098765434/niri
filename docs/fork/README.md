@@ -11,4 +11,5 @@ Design and implementation notes for this fork's features. User-facing docs stay 
 | [blur-shapes.md](blur-shapes.md) | `niri-blur-shapes-v1` and liquid-glass materials | implemented |
 | [vibrancy.md](vibrancy.md) | `niri-vibrancy-v1`: vibrant subsurfaces blended with the backdrop | implemented |
 | [workspace-mat.md](workspace-mat.md) | Backing behind the scrolling layout | draft (untracked) |
+| [desktop-layer.md](desktop-layer.md) | `desktop` layer rule and the `DesktopObscured` event | implemented |
 | [column-by-window.md](column-by-window.md) | `MoveColumnToIndex` with a `window_id` | implemented |

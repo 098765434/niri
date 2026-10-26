@@ -25,6 +25,7 @@ stock upstream; the fork is a thin series of commits on top of a tagged release.
 | Vibrancy (`niri-vibrancy-v1`) | feature | (this branch) | [design](docs/fork/vibrancy.md) | no as-is: private protocol |
 | [Workspace and overview gaps](#workspace-and-overview-gaps) | feature | (this branch) | [wiki](docs/wiki/Configuration:-Miscellaneous.md#workspace-gap) | maybe: plain config, stock behaviour unchanged when unset |
 | [Workspace mat](#workspace-mat) | feature | (this branch) | [design](docs/fork/workspace-mat.md), [wiki](docs/wiki/Configuration:-Layout.md#mat) | maybe: plain config, no protocol |
+| [Desktop layers](#desktop-layers) | feature | (this branch) | [design](docs/fork/desktop-layer.md), [wiki](docs/wiki/Configuration:-Layer-Rules.md#desktop) | maybe: plain config plus one IPC event |
 | [`active_column_idx` build fix](#fixes-and-housekeeping) | fix | `9d5bf9fc` | — | n/a (fixes the fork's own IPC commit) |
 | [Fork docs and housekeeping](#fixes-and-housekeeping) | internal | `9366e512`, `c5b8c69d`, `8fd4e23e`, `b414445c`, `6d9306a7`, `6baa66e5` | this file | no |
 
@@ -123,6 +124,21 @@ them set, the spacing is stock.
   windows move apart without resizing and hit testing follows.
 - **Files:** `niri-config/src/{layout,misc,lib}.rs`, `src/layout/{monitor,workspace,scrolling,tests}.rs`,
   `docs/wiki/Configuration:-{Layout,Miscellaneous}.md`.
+
+### Desktop layers
+
+A `desktop true` layer rule for desktop widgets: the surface sits in the backdrop above the
+wallpaper, stays still while workspaces slide over it, keeps its size in the overview and fades
+out with it (frost included), and still takes input and shows its menus above the windows while
+the overview is closed. A `DesktopObscured { output, obscured }` IPC event says when nothing under
+the workspaces shows (the overview fully open, or windows covering the working area), so the
+client can stop drawing.
+
+- **Surface:** config `layer-rule { desktop true }`; `niri_ipc::Event::DesktopObscured`.
+- **Files:** `niri-config/src/layer_rule.rs`, `src/layer/{mod,mapped}.rs`, `src/niri.rs`,
+  `src/handlers/xdg_shell.rs`, `src/render_helpers/background_effect.rs`,
+  `src/layout/{mod,monitor,workspace}.rs`, `niri-ipc/src/{lib,state}.rs`, `src/ipc/{server,client}.rs`.
+- **Client:** amane's `Desktop` service; amane-shell's desktop widgets.
 
 ## Fixes and housekeeping
 

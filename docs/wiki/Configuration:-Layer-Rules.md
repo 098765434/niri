@@ -34,6 +34,7 @@ layer-rule {
 
     geometry-corner-radius 12
     place-within-backdrop true
+    desktop true
     baba-is-float true
 
     background-effect {
@@ -208,6 +209,37 @@ layer-rule {
     match namespace="^wallpaper$"
 
     place-within-backdrop true
+}
+```
+
+#### `desktop`
+
+<sup>Fork only</sup>
+
+Set to `true` to make the surface the desktop: a layer in the backdrop, like
+[`place-within-backdrop`](#place-within-backdrop), that stays put while workspaces switch and
+doesn't shrink in the overview, but sits above the other backdrop layers (the wallpaper), takes
+input wherever no window is while the overview is closed, and fades out as the overview opens, in
+step with the gesture, along with its background effect. Its popups (menus) show above the
+windows.
+
+As with the backdrop, the surface only shows through workspaces with a transparent
+`background-color` (in `layout`), and only *background* layer surfaces that ignore exclusive zones
+can be one.
+
+The `DesktopObscured` event on the [IPC](./IPC.md) event stream tells a desktop layer when nothing
+under the workspaces shows on its output, so it can stop drawing.
+
+```kdl
+// Desktop widgets on the wallpaper.
+layout {
+    background-color "transparent"
+}
+
+layer-rule {
+    match namespace="^amane\\.widgets\\."
+
+    desktop true
 }
 ```
 
