@@ -23,7 +23,7 @@ stock upstream; the fork is a thin series of commits on top of a tagged release.
 | [Mod-held window swipes](#mod-held-three-finger-window-swipes) | feature | `f4367f88`, `4177c74f` | [design](docs/fork/gestures/mod-swipe.md), [usage](docs/fork/gestures/mod-swipe.md#usage) | maybe — behind a config switch |
 | [Blur shapes + glass materials](#rounded-fading-blur-shapes-and-liquid-glass) | feature | `13d945b5`, `454d9751`, `74b623a7`, `3cde7327` | [design](docs/fork/effects/blur-shapes.md), [materials](docs/fork/effects/materials.md) | no as-is — private protocol; GPL-3.0 shader lineage |
 | Vibrancy (`niri-vibrancy-v1`) | feature | (this branch) | [design](docs/fork/effects/vibrancy.md) | no as-is: private protocol |
-| [Workspace and overview gaps](#workspace-and-overview-gaps) | feature | (this branch) | [usage](docs/fork/layout/gaps.md) | maybe: plain config, stock behaviour unchanged when unset |
+| [Workspace and overview gaps](#workspace-and-overview-gaps) | feature | (this branch) | [gaps](docs/fork/layout/gaps.md) | maybe: plain config, stock behaviour unchanged when unset |
 | [Workspace mat](#workspace-mat) | feature | (this branch) | [design](docs/fork/layout/workspace-mat.md) | maybe: plain config, no protocol |
 | [Desktop layers](#desktop-layers) | feature | (this branch) | [design](docs/fork/layout/desktop-layer.md) | maybe: plain config plus one IPC event |
 | [`active_column_idx` build fix](#fixes-and-housekeeping) | fix | `9d5bf9fc` | — | n/a (fixes the fork's own IPC commit) |

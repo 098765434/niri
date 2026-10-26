@@ -3,7 +3,26 @@
 Status: implemented in `4c68634c`, with plus-darker reworked to subtract in `ada326f0`. The client side
 is amane's vibrant layer.
 
-## Why
+## Usage
+
+There is nothing to configure: `niri-vibrancy-v1` is a protocol a client uses, advertised to
+every client. A client that wants vibrant labels on a material:
+
+1. Gives the material surface its frost and tint, for example with
+   [blur shapes](blur-shapes.md) and a [material](materials.md).
+2. Puts the labels, glyphs and fills in a subsurface above it, in greyscale only.
+3. Binds `niri_vibrancy_manager_v1`, calls `get_vibrancy` for the subsurface, then
+   `set_mode(plus_lighter)` for dark appearance or `set_mode(plus_darker)` for light, and
+   commits the subsurface.
+
+For `plus_darker`, the subsurface holds how much to darken, not the colour: a grey `c` at alpha
+`a` is drawn as white, `1 − c`, at alpha `a`. Without the global (stock niri) there is no blend, so a client
+should draw its labels normally there. amane's vibrant layer does all of this; see amane's
+[fork docs](https://github.com/098765434/amane/blob/ocbk/docs/fork/README.md).
+
+## Design / internals
+
+### Why
 
 Apple's labels on a material are *vibrant*: they're blended with the frosted backdrop under them
 (plus-lighter in dark, plus-darker in light), so they take on its colour. A client can't do this
@@ -11,7 +30,7 @@ itself, because it never sees what's behind its surface. Translucent label colou
 since the backdrop shows through them, but they only fade towards it. They don't brighten or
 darken it.
 
-## Protocol: `niri-vibrancy-v1`
+### Protocol: `niri-vibrancy-v1`
 
 `resources/niri-vibrancy-v1.xml`, handled in `src/protocols/vibrancy.rs`.
 
@@ -23,7 +42,7 @@ darken it.
 It's meant for a subsurface that holds only the greyscale vibrant content (labels, glyphs,
 fills), above a surface whose background is a material.
 
-## Rendering
+### Rendering
 
 `push_elements_from_surface_tree` (`src/render_helpers/surface.rs`) wraps every surface's
 element in a `VibrantSurfaceRenderElement` (`src/render_helpers/vibrant.rs`), with the mode the
@@ -45,7 +64,20 @@ surface's state has now. With `none` it is the plain element.
 The elements are drawn back to front, so when a vibrant subsurface is drawn the framebuffer
 already holds the frosted backdrop, the material's tint and its parent surface.
 
-## Not done
+### Not done
 
 - Screencasts and screenshots render the same elements, so they show the blend too. Nothing
   special is done for them.
+
+### Files
+
+- `resources/niri-vibrancy-v1.xml`, `src/protocols/{vibrancy,raw,mod}.rs`
+- `src/render_helpers/{vibrant,surface,clipped_surface,mod}.rs`
+- `src/niri.rs` (the global and the render element types), `src/{layer,window}/mapped.rs`,
+  `src/layout/{mod,scrolling,workspace}.rs`, `src/handlers/background_effect.rs`,
+  `src/input/mod.rs`
+
+### Commits
+
+- `4c68634c` adds the protocol, with plus-lighter and plus-darker.
+- `ada326f0` makes plus-darker subtract (`FUNC_REVERSE_SUBTRACT`), as Apple's does.

@@ -11,22 +11,34 @@ amane-shell's dock needs this. Dragging a window's icon to a new place among its
 icons reorders that window's column. If the drag focused the window first, every reorder would
 switch the view to that workspace and column.
 
-## Surface
+## Usage
+
+From the command line, or a script:
+
+```sh
+niri msg action move-column-to-index --window-id 42 3
+```
+
+As an IPC request:
 
 ```json
 {"Action":{"MoveColumnToIndex":{"window_id":42,"index":3}}}
 ```
 
-`niri msg action move-column-to-index --window-id 42 3`
-
 `index` counts from 1 and is clamped to the workspace's columns. A floating window has no column,
 so nothing happens. Neither does an unknown id, or a window that's being moved interactively.
+Without `--window-id` the action is stock: it moves the focused column. Window ids come from
+`niri msg windows` or the `WindowsChanged` / `WindowOpenedOrChanged` events.
 
 Moving a window to another workspace and then to a place there takes two requests:
 `MoveWindowToWorkspace { window_id, reference, focus: false }`, then this. amane's
 `Windows::move_to` sends both, in order, on its worker thread.
 
-## Implementation
+There is no config-bind form: `MoveColumnToIndexById` is IPC only.
+
+## Design / internals
+
+### Implementation
 
 | Layer | What |
 |---|---|
@@ -44,14 +56,14 @@ the same column stays active, and offsets `view_offset` by how far the active co
 the camera stays where it was. Both columns animate from where they were, the same way
 `move_column_to` animates them (`animate_move_from`).
 
-## Tests
+### Tests
 
 - `move_column_with_window_to_index_keeps_focus` in `src/layout/tests.rs`: three columns, focus
   on the middle one, the first column moved to the end and back. The order changes, the focus
   doesn't.
 - `Op::MoveColumnWithWindowToIndex` joins the randomized layout operations.
 
-## Compatibility
+### Compatibility
 
 Upstream niri doesn't reject unknown fields, so it accepts the request, ignores `window_id`, and
 moves the **focused** column. A client must only send the id to this fork.
