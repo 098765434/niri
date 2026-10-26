@@ -100,6 +100,21 @@ impl Xray {
         }
     }
 
+    /// Counts a frame on every buffer, letting go of what none used for a while; once per
+    /// output frame.
+    pub fn tick(&self) {
+        for buffer in self.background.iter().chain(self.backdrop.iter()) {
+            buffer.borrow_mut().tick();
+        }
+    }
+
+    /// Lets go of one target's textures and blur chains, for a target rendered once (a
+    /// screenshot) that would otherwise keep them for the session.
+    pub fn release_target(&self, target: RenderTarget) {
+        self.background[target as usize].borrow_mut().release();
+        self.backdrop[target as usize].borrow_mut().release();
+    }
+
     /// Pushes the xray elements for each of `areas`, with its position against the backdrop.
     /// `blur` is `blur {}`'s options, which a material may set its own in place of.
     pub fn render(
@@ -132,15 +147,30 @@ impl Xray {
             }
             None => Vec::new(),
         };
+        // whether any area draws with `blur {}`'s own options, so the buffers need that chain
+        let base_used = match blur {
+            Some(base) => areas
+                .iter()
+                .any(|(params, _)| base.for_material(params.material.as_ref()) == base),
+            None => false,
+        };
         let blur_options = blur;
         let blur = blur.is_some();
 
         let mut background = self.background[ctx.target as usize].borrow_mut();
-        let prev = background.commit();
-        let background_ready = background.prepare_with(ctx.renderer, blur, &variants);
-        if background_ready && background.commit() != prev {
-            trace!("background damaged");
-        }
+        // An empty background over see-through workspaces draws nothing, so it isn't
+        // rendered at all: that saves a full-output texture and its blur chains. A tick lets
+        // go of what it had.
+        let background_needed =
+            !background.is_empty() || self.workspaces.iter().any(|(_, color)| color.a() > 0.);
+        let background_ready = background_needed && {
+            let prev = background.commit();
+            let ready = background.prepare_with(ctx.renderer, blur, &variants, base_used);
+            if ready && background.commit() != prev {
+                trace!("background damaged");
+            }
+            ready
+        };
 
         let mut backdrop = self.backdrop[ctx.target as usize].borrow_mut();
         // prepared the first time an area needs it
@@ -264,7 +294,7 @@ impl Xray {
 
             let ready = *backdrop_ready.get_or_insert_with(|| {
                 let prev = backdrop.commit();
-                let ready = backdrop.prepare_with(ctx.renderer, blur, &variants);
+                let ready = backdrop.prepare_with(ctx.renderer, blur, &variants, base_used);
                 if ready && backdrop.commit() != prev {
                     trace!("backdrop damaged");
                 }

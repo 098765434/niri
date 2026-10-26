@@ -117,6 +117,15 @@ impl FramebufferEffect {
         self.commit.increment();
     }
 
+    /// Lets go of the captures the shapes last drew from, for a surface that has no shapes
+    /// now; each is a texture the size of the shapes' bounds, kept until the next capture.
+    pub fn forget_captures(&self) {
+        *self.shared.borrow_mut() = None;
+        for (_, share) in self.groups.borrow().iter() {
+            *share.borrow_mut() = None;
+        }
+    }
+
     pub fn render(
         &self,
         ns: Option<usize>,
@@ -418,6 +427,13 @@ impl RenderElement<GlesRenderer> for FramebufferEffectElement {
             let inner = &mut *inner;
 
             inner.intermediate = None;
+
+            // The shapes' capture is the blur's own output texture: let it go now, before the
+            // blur checks that its textures are its alone, or it would make the whole chain
+            // again every frame. The shapes draw after this capture, so they see the new one.
+            if let Some(share) = &self.share {
+                *share.borrow_mut() = None;
+            }
 
             // We want clamp-to-edge behavior for out-of-bounds pixels. However, glBlitFramebuffer
             // seems to skip out-of-bounds pixels, even though my reading of the docs suggests

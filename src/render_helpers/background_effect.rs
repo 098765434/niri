@@ -262,6 +262,7 @@ impl BackgroundEffect {
         push: &mut dyn FnMut(BackgroundEffectElement),
     ) {
         if !self.is_visible() {
+            self.nonxray.forget_captures();
             return;
         }
 
@@ -291,6 +292,8 @@ impl BackgroundEffect {
         let saturation = self.options.saturation.unwrap_or(saturation) as f32;
 
         if self.options.xray {
+            self.nonxray.forget_captures();
+
             let Some(xray) = ctx.xray else {
                 return;
             };
@@ -302,6 +305,9 @@ impl BackgroundEffect {
         } else {
             // Render non-xray effect: shapes draw from one capture of the area behind them all.
             let shapes = areas.first().is_some_and(|(params, _)| params.exact_clip);
+            if !shapes {
+                self.nonxray.forget_captures();
+            }
             if shapes {
                 let shapes = areas.into_iter().map(|(params, _)| params).collect();
                 self.nonxray.render_shapes(

@@ -38,6 +38,12 @@ pub struct EffectBuffer {
 
     /// Commit counter that takes into account both original and blurred texture changes.
     commit_counter: CommitCounter,
+
+    /// Frames [`tick`](Self::tick)ed so far, and at which the buffer was last prepared and its
+    /// own blur last asked for; a tick lets go of what wasn't for a while.
+    frame: u64,
+    used_at: u64,
+    blur_used_at: u64,
 }
 
 /// The contents blurred with options of a material's own.
@@ -47,10 +53,19 @@ struct Variant {
     blur: Blur,
     /// Reset to `None` along with the main blurred texture.
     blurred: Option<GlesTexture>,
+    /// The frame this variant was last asked for.
+    used_at: u64,
 }
 
 /// How many blur variants a buffer keeps; the least recently asked for goes first.
 const MAX_VARIANTS: usize = 4;
+
+/// How many frames a buffer, its blur or a variant stays unused before a tick lets it go.
+/// Frames, not time: a still screen renders none, and nothing is lost by keeping what the
+/// next frame will want. A full output's offscreen is 20 MB at 2880×1800 and each blur chain
+/// a third more, so a material no longer on screen or a background that went empty shouldn't
+/// keep theirs for the session.
+const IDLE_FRAMES: u64 = 600;
 
 #[derive(Debug)]
 enum Elements {
@@ -99,11 +114,63 @@ impl EffectBuffer {
             blur: None,
             variants: Vec::new(),
             commit_counter: CommitCounter::default(),
+            frame: 0,
+            used_at: 0,
+            blur_used_at: 0,
         }
     }
 
     pub fn id(&self) -> &Id {
         &self.id
+    }
+
+    /// Whether there is nothing to render into the buffer.
+    pub fn is_empty(&self) -> bool {
+        match &self.elements {
+            Elements::Unchanged(elements) | Elements::New(elements) => elements.is_empty(),
+        }
+    }
+
+    /// Lets go of the offscreen texture and every blur chain; the elements and size stay, so
+    /// the next [`prepare`](Self::prepare) renders afresh.
+    pub fn release(&mut self) {
+        if self.offscreen.is_none() && self.blur.is_none() && self.variants.is_empty() {
+            return;
+        }
+
+        trace!("releasing effect buffer");
+        self.offscreen = None;
+        self.blur = None;
+        self.variants.clear();
+        self.commit_counter.increment();
+    }
+
+    /// Counts a frame, and lets go of what hasn't been used for [`IDLE_FRAMES`]: variants
+    /// and the buffer's own blur chain first, then the whole buffer. Called once per output
+    /// frame, before the frame renders.
+    pub fn tick(&mut self) {
+        self.frame += 1;
+        let frame = self.frame;
+
+        if self.offscreen.is_some() && frame - self.used_at > IDLE_FRAMES {
+            self.release();
+            return;
+        }
+
+        let before = self.variants.len();
+        self.variants
+            .retain(|variant| frame - variant.used_at <= IDLE_FRAMES);
+        if self.variants.len() != before {
+            trace!("released {} idle blur variants", before - self.variants.len());
+        }
+
+        if self.blur.is_some() && frame - self.blur_used_at > IDLE_FRAMES {
+            trace!("releasing idle blur chain");
+            self.blur = None;
+            if let Some(offscreen) = &mut self.offscreen {
+                offscreen.blurred = None;
+            }
+        }
     }
 
     pub fn commit(&self) -> CommitCounter {
@@ -156,26 +223,33 @@ impl EffectBuffer {
     }
 
     pub fn prepare(&mut self, renderer: &mut GlesRenderer, blur: bool) -> bool {
-        self.prepare_with(renderer, blur, &[])
+        self.prepare_with(renderer, blur, &[], true)
     }
 
     /// [`prepare`](Self::prepare), and blurs with each of `variants` too, for materials with
-    /// options of their own. Options the same as the buffer's need no variant.
+    /// options of their own. Options the same as the buffer's need no variant. The buffer's
+    /// own blur chain is only prepared when `base_used`, i.e. some area draws with the
+    /// buffer's options; one that turns out to need it later gets it then.
     pub fn prepare_with(
         &mut self,
         renderer: &mut GlesRenderer,
         blur: bool,
         variants: &[BlurOptions],
+        base_used: bool,
     ) -> bool {
+        self.used_at = self.frame;
+
         if let Err(err) = self.prepare_offscreen(renderer) {
             warn!("error preparing offscreen: {err:?}");
             return false;
         };
 
         if blur {
-            if let Err(err) = self.prepare_blur(renderer) {
-                warn!("error preparing blur: {err:?}");
-                return false;
+            if base_used {
+                if let Err(err) = self.prepare_blur(renderer) {
+                    warn!("error preparing blur: {err:?}");
+                    return false;
+                }
             }
             for options in variants {
                 if *options == self.blur_options {
@@ -212,16 +286,19 @@ impl EffectBuffer {
                     options,
                     blur,
                     blurred: None,
+                    used_at: self.frame,
                 }
             }
         };
         if self.variants.len() >= MAX_VARIANTS {
             self.variants.remove(0);
         }
+        let frame = self.frame;
         let variant = {
             self.variants.push(variant);
             self.variants.last_mut().unwrap()
         };
+        variant.used_at = frame;
 
         if variant.blurred.is_some() {
             return Ok(());
@@ -347,6 +424,8 @@ impl EffectBuffer {
     }
 
     fn prepare_blur(&mut self, renderer: &mut GlesRenderer) -> anyhow::Result<()> {
+        self.blur_used_at = self.frame;
+
         let offscreen = self.offscreen.as_mut().context("missing offscreen")?;
         if offscreen.blurred.is_some() {
             // Already rendered.
@@ -420,19 +499,27 @@ impl EffectBuffer {
             return Ok(variant.blurred.insert(blurred).clone());
         }
 
-        let texture = if let Some(texture) = &offscreen.blurred {
-            texture.clone()
-        } else {
-            let blur = self.blur.as_mut().context("blur is missing")?;
-            let mut guard = frame.renderer();
-            let renderer = guard.as_mut();
-            let blurred = blur
-                .render(renderer, &offscreen.texture, self.blur_options)
-                .context("error rendering blur")?;
-            offscreen.blurred.insert(blurred).clone()
-        };
+        if let Some(texture) = &offscreen.blurred {
+            return Ok(texture.clone());
+        }
 
-        Ok(texture)
+        // An area that turns out to draw with the buffer's own options, which prepare_with
+        // was told nothing needs: prepare that chain now.
+        if self.blur.is_none() {
+            let mut guard = frame.renderer();
+            self.prepare_blur(guard.as_mut())
+                .context("error preparing blur late")?;
+        }
+
+        let offscreen = self.offscreen.as_mut().context("offscreen is missing")?;
+        let blur = self.blur.as_mut().context("blur is missing")?;
+        let mut guard = frame.renderer();
+        let renderer = guard.as_mut();
+        let blurred = blur
+            .render(renderer, &offscreen.texture, self.blur_options)
+            .context("error rendering blur")?;
+
+        Ok(offscreen.blurred.insert(blurred).clone())
     }
 }
 
