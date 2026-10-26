@@ -6,10 +6,10 @@ Design and implementation notes for this fork's features. User-facing docs stay 
 
 | Doc | Feature | Status |
 |---|---|---|
-| [gesture-ipc.md](gesture-ipc.md) | Live gesture-progress IPC events | implemented |
-| [mod-swipe.md](mod-swipe.md) | Mod-held three-finger window swipes | implemented |
-| [blur-shapes.md](blur-shapes.md) | `niri-blur-shapes-v1` and liquid-glass materials | implemented |
-| [vibrancy.md](vibrancy.md) | `niri-vibrancy-v1`: vibrant subsurfaces blended with the backdrop | implemented |
-| [workspace-mat.md](workspace-mat.md) | Backing behind the scrolling layout | draft (untracked) |
-| [desktop-layer.md](desktop-layer.md) | `desktop` layer rule and the `DesktopObscured` event | implemented |
-| [column-by-window.md](column-by-window.md) | `MoveColumnToIndex` with a `window_id` | implemented |
+| [design/gesture-ipc.md](design/gesture-ipc.md) | Live gesture-progress IPC events | implemented |
+| [gestures/mod-swipe.md](gestures/mod-swipe.md) | Mod-held three-finger window swipes | implemented |
+| [effects/blur-shapes.md](effects/blur-shapes.md) | `niri-blur-shapes-v1` and liquid-glass materials | implemented |
+| [effects/vibrancy.md](effects/vibrancy.md) | `niri-vibrancy-v1`: vibrant subsurfaces blended with the backdrop | implemented |
+| [layout/workspace-mat.md](layout/workspace-mat.md) | Backing behind the scrolling layout | draft (untracked) |
+| [layout/desktop-layer.md](layout/desktop-layer.md) | `desktop` layer rule and the `DesktopObscured` event | implemented |
+| [ipc/actions.md](ipc/actions.md) | `MoveColumnToIndex` with a `window_id` | implemented |
