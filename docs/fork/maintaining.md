@@ -49,7 +49,9 @@ git diff v26.04 HEAD -- docs/wiki
 
 and a rebase only ever conflicts on `FORK.md` and the README banner line, never on a wiki page.
 New user-facing docs for a fork feature go in that feature's doc under `docs/fork/`, as its
-Usage section, not into `docs/wiki/`.
+Usage section, not into `docs/wiki/`. Upstream's `niri-config/tests/wiki-parses.rs` checks the
+wiki's ```` ```kdl ```` blocks; the fork's own `niri-config/tests/fork-docs-parse.rs` does the same
+for every block under `docs/fork/` (mark one ```` ```kdl must-fail ```` if it should not parse).
 
 Specs that are implemented go in `docs/fork/design/` as history, with a
 `Status: implemented in <hash>` line.
