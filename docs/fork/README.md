@@ -9,5 +9,6 @@ Design and implementation notes for this fork's features. User-facing docs stay 
 | [gesture-ipc.md](gesture-ipc.md) | Live gesture-progress IPC events | implemented |
 | [mod-swipe.md](mod-swipe.md) | Mod-held three-finger window swipes | implemented |
 | [blur-shapes.md](blur-shapes.md) | `niri-blur-shapes-v1` and liquid-glass materials | implemented |
+| [vibrancy.md](vibrancy.md) | `niri-vibrancy-v1`: vibrant subsurfaces blended with the backdrop | implemented |
 | [workspace-mat.md](workspace-mat.md) | Backing behind the scrolling layout | draft (untracked) |
 | [column-by-window.md](column-by-window.md) | `MoveColumnToIndex` with a `window_id` | implemented |

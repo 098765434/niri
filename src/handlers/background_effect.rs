@@ -10,10 +10,10 @@ use smithay::wayland::compositor::{
     add_post_commit_hook, with_states, RegionAttributes, SurfaceData,
 };
 
-use crate::delegate_blur_shapes;
 use crate::niri::State;
 use crate::protocols::blur_shapes::{BlurShape, BlurShapesCachedState, BlurShapesHandler};
 use crate::utils::region::region_to_non_overlapping_rects;
+use crate::{delegate_blur_shapes, delegate_vibrancy};
 
 /// Per-surface cache for processed blur region (non-overlapping rects).
 #[derive(Default)]
@@ -170,3 +170,4 @@ impl BlurShapesHandler for State {
     }
 }
 delegate_blur_shapes!(State);
+delegate_vibrancy!(State);

@@ -2,13 +2,16 @@ use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::backend::renderer::utils::{import_surface, RendererSurfaceStateUserData};
-use smithay::backend::renderer::{ImportAll, Renderer};
+use smithay::backend::renderer::Renderer;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::utils::{Logical, Physical, Point, Scale};
 use smithay::wayland::compositor::{with_surface_tree_downward, TraversalAction};
 
+use super::renderer::NiriRenderer;
 use super::texture::TextureBuffer;
+use super::vibrant::VibrantSurfaceRenderElement;
 use super::BakedBuffer;
+use crate::protocols::vibrancy;
 
 /// Renders elements from a surface tree as textures into `storage`.
 pub fn render_snapshot_from_surface_tree(
@@ -89,10 +92,9 @@ pub fn push_elements_from_surface_tree<R>(
     scale: Scale<f64>,
     alpha: f32,
     kind: Kind,
-    push: &mut dyn FnMut(WaylandSurfaceRenderElement<R>),
+    push: &mut dyn FnMut(VibrantSurfaceRenderElement<R>),
 ) where
-    R: Renderer + ImportAll,
-    R::TextureId: Clone + 'static,
+    R: NiriRenderer,
 {
     let _span = tracy_client::span!("push_elements_from_surface_tree");
 
@@ -132,7 +134,10 @@ pub fn push_elements_from_surface_tree<R>(
                     match WaylandSurfaceRenderElement::from_surface(
                         renderer, surface, states, location, alpha, kind,
                     ) {
-                        Ok(Some(surface)) => push(surface),
+                        Ok(Some(elem)) => push(VibrantSurfaceRenderElement::new(
+                            elem,
+                            vibrancy::vibrancy(states),
+                        )),
                         Ok(None) => {} // surface is not mapped
                         Err(err) => {
                             warn!("failed to import surface: {}", err);

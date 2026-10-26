@@ -4924,7 +4924,12 @@ impl<W: LayoutElement> Column<W> {
             if forwards {
                 return false;
             }
-            let Some(preset_idx) = self.options.layout.preset_column_widths.len().checked_sub(1)
+            let Some(preset_idx) = self
+                .options
+                .layout
+                .preset_column_widths
+                .len()
+                .checked_sub(1)
             else {
                 return false;
             };

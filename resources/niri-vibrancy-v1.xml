@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="niri_vibrancy_v1">
+  <copyright>
+    Copyright © 2026 the niri fork contributors
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+  </copyright>
+
+  <description summary="vibrant content blended with what is behind it">
+    Lets a client have a surface's content blended with what the compositor
+    has already drawn behind it, instead of painted over it: the vibrancy of
+    labels and glyphs on a material, which take on the colour of the frosted
+    backdrop under them.
+
+    It is meant for a subsurface holding only greyscale content (labels,
+    glyphs, fills) above a surface whose background is a translucent
+    material. Coloured content blends unpredictably.
+  </description>
+
+  <interface name="niri_vibrancy_manager_v1" version="1">
+    <description summary="vibrancy factory">
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the manager">
+        Objects made with it are unaffected.
+      </description>
+    </request>
+
+    <enum name="error">
+      <entry name="already_constructed" value="0"
+             summary="the surface already has a vibrancy object"/>
+    </enum>
+
+    <request name="get_vibrancy">
+      <description summary="make a vibrancy object for a surface">
+        A surface has at most one vibrancy object; asking for a second one
+        while the first is alive is the already_constructed error.
+      </description>
+      <arg name="id" type="new_id" interface="niri_vibrancy_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+
+  <interface name="niri_vibrancy_v1" version="1">
+    <description summary="how a surface blends with what is behind it">
+      The mode is double-buffered state, applied on the surface's next
+      commit. A new object's mode is none. Destroying it sets the mode back
+      to none on the next commit. Once its surface is destroyed the object is
+      inert.
+    </description>
+
+    <enum name="mode">
+      <entry name="none" value="0" summary="painted over, as usual"/>
+      <entry name="plus_lighter" value="1"
+             summary="added to what is behind, clamped: light content brightens it"/>
+      <entry name="plus_darker" value="2"
+             summary="dark content darkens what is behind, keeping its colour (a multiply)"/>
+    </enum>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the vibrancy object"/>
+    </request>
+
+    <request name="set_mode">
+      <description summary="set how the surface blends">
+        An unknown mode is treated as none.
+      </description>
+      <arg name="mode" type="uint" enum="mode"/>
+    </request>
+  </interface>
+</protocol>
