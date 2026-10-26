@@ -282,7 +282,7 @@ impl BackgroundEffect {
             };
 
             push(damage.into());
-            xray.render(ctx, areas, blur, noise, saturation, &mut |elem| {
+            xray.render(ctx, areas, blur_options, noise, saturation, &mut |elem| {
                 push(elem.into())
             });
         } else {
@@ -292,7 +292,6 @@ impl BackgroundEffect {
                 let shapes = areas.into_iter().map(|(params, _)| params).collect();
                 self.nonxray.render_shapes(
                     ns,
-                    bounds,
                     shapes,
                     blur_options,
                     noise,

@@ -676,6 +676,8 @@ mod tests {
                 }
                 material "frosted" {
                     rim 0
+                    blur-passes 2
+                    blur-offset 1.5
                 }
             }
             "#,
@@ -689,6 +691,10 @@ mod tests {
         // unset values take the defaults
         assert_eq!(glass.bevel, 16.);
         assert_eq!(parsed.materials.0[1].params().rim, 0.);
+        // the blur is `blur {}`'s unless the material sets its own
+        assert_eq!((glass.blur_passes, glass.blur_offset), (None, None));
+        let frosted = parsed.materials.0[1].params();
+        assert_eq!((frosted.blur_passes, frosted.blur_offset), (Some(2), Some(1.5)));
     }
 
     #[test]

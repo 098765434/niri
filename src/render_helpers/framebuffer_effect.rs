@@ -31,6 +31,9 @@ pub struct FramebufferEffect {
     sample_ids: RefCell<Vec<Id>>,
     /// The last capture for shapes, shared with the elements drawing them.
     shared: SharedCapture,
+    /// Further captures, for shapes whose material blurs with options of its own: the id of
+    /// each one's capture-only element, and what it captured.
+    groups: RefCell<Vec<(Id, SharedCapture)>>,
     /// How bright the backdrop is behind the shapes that report it.
     probe: SharedProbe,
 }
@@ -100,6 +103,7 @@ impl FramebufferEffect {
             commit: CommitCounter::default(),
             sample_ids: RefCell::new(Vec::new()),
             shared: Rc::new(RefCell::new(None)),
+            groups: RefCell::new(Vec::new()),
             probe: SharedProbe::default(),
         }
     }
@@ -146,14 +150,15 @@ impl FramebufferEffect {
         }
     }
 
-    /// Elements drawing each of `shapes` from one capture of `bounds`, behind all of them.
+    /// Elements drawing each of `shapes` from a capture of the area behind them, blurred with
+    /// `blur_options` or the shape's material's own: one capture for each blur, of the area
+    /// behind that blur's shapes.
     ///
-    /// The capture-only element comes last: elements are drawn back to front, so it captures
-    /// before any shape draws.
+    /// The capture-only elements come last: elements are drawn back to front, so every capture
+    /// is taken before any shape draws, and none sees another's glass.
     pub fn render_shapes(
         &self,
         ns: Option<usize>,
-        bounds: Rectangle<f64, Logical>,
         shapes: Vec<RenderParams>,
         blur_options: Option<BlurOptions>,
         noise: f32,
@@ -167,7 +172,33 @@ impl FramebufferEffect {
 
         let scale = shapes.first().map_or(1., |params| params.scale);
 
-        for (params, id) in shapes.into_iter().zip(ids.iter()) {
+        // each blur's options and the area behind its shapes, in the order they first appear
+        let mut blurs: Vec<(Option<BlurOptions>, Rectangle<f64, Logical>)> = Vec::new();
+        let mut group_of = Vec::with_capacity(shapes.len());
+        for params in &shapes {
+            let options = blur_options.map(|b| b.for_material(params.material.as_ref()));
+            match blurs.iter().position(|(o, _)| *o == options) {
+                Some(at) => {
+                    blurs[at].1 = blurs[at].1.merge(params.geometry);
+                    group_of.push(at);
+                }
+                None => {
+                    blurs.push((options, params.geometry));
+                    group_of.push(blurs.len() - 1);
+                }
+            }
+        }
+
+        let mut groups = self.groups.borrow_mut();
+        if groups.len() + 1 < blurs.len() {
+            groups.resize_with(blurs.len() - 1, || (Id::new(), Rc::new(RefCell::new(None))));
+        }
+        let shared = |group: usize| match group {
+            0 => self.shared.clone(),
+            n => groups[n - 1].1.clone(),
+        };
+
+        for ((params, id), group) in shapes.into_iter().zip(ids.iter()).zip(&group_of) {
             let id = match ns {
                 Some(ns) => id.namespaced(ns),
                 None => id.clone(),
@@ -191,32 +222,40 @@ impl FramebufferEffect {
                     .unwrap_or(saturation),
                 material: params.material,
                 tint: params.tint,
-                shared: self.shared.clone(),
+                shared: shared(*group),
                 report: params.report.map(|index| (self.probe.clone(), index)),
             }));
         }
 
-        let capture = self.render(
-            ns,
-            RenderParams {
-                geometry: bounds,
-                subregion: None,
-                clip: None,
-                scale,
-                alpha: 1.,
-                exact_clip: true,
-                material: None,
-                tint: [0.; 4],
-                report: None,
-            },
-            blur_options,
-            noise,
-            saturation,
-        );
-        push(FramebufferShapeElement::Capture(FramebufferEffectElement {
-            share: Some(self.shared.clone()),
-            ..capture
-        }));
+        for (group, (options, bounds)) in blurs.into_iter().enumerate() {
+            let capture = self.render(
+                ns,
+                RenderParams {
+                    geometry: bounds,
+                    subregion: None,
+                    clip: None,
+                    scale,
+                    alpha: 1.,
+                    exact_clip: true,
+                    material: None,
+                    tint: [0.; 4],
+                    report: None,
+                },
+                options,
+                noise,
+                saturation,
+            );
+            let id = match (group, ns) {
+                (0, _) => capture.id.clone(),
+                (n, Some(ns)) => groups[n - 1].0.namespaced(ns),
+                (n, None) => groups[n - 1].0.clone(),
+            };
+            push(FramebufferShapeElement::Capture(FramebufferEffectElement {
+                id,
+                share: Some(shared(group)),
+                ..capture
+            }));
+        }
     }
 }
 

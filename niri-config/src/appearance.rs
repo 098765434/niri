@@ -1114,7 +1114,7 @@ impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
 #[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
 pub struct Materials(#[knuffel(children(name = "material"))] pub Vec<Material>);
 
-#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
 pub struct Material {
     #[knuffel(argument)]
     pub name: String,
@@ -1160,6 +1160,13 @@ pub struct Material {
     /// a little back from the GPU.
     #[knuffel(child, unwrap(argument))]
     pub report_backdrop: Option<bool>,
+    /// Blur passes for the backdrop behind this material, in place of `blur {}`'s: more is
+    /// a wider blur. Big glass frosts more than small, as Apple's does.
+    #[knuffel(child, unwrap(argument))]
+    pub blur_passes: Option<u8>,
+    /// Blur offset for the backdrop behind this material, in place of `blur {}`'s.
+    #[knuffel(child, unwrap(argument))]
+    pub blur_offset: Option<FloatOrInt<0, 100>>,
 }
 
 /// A material with every value filled in.
@@ -1178,6 +1185,9 @@ pub struct MaterialParams {
     pub noise: Option<f32>,
     pub materialize: bool,
     pub report_backdrop: bool,
+    /// `blur {}`'s passes and offset, where the material sets its own.
+    pub blur_passes: Option<u8>,
+    pub blur_offset: Option<f32>,
 }
 
 impl Material {
@@ -1198,6 +1208,8 @@ impl Material {
             noise: self.noise.map(|v| v.0 as f32),
             materialize: self.materialize.unwrap_or(true),
             report_backdrop: self.report_backdrop.unwrap_or(false),
+            blur_passes: self.blur_passes.map(|p| p.clamp(1, 31)),
+            blur_offset: self.blur_offset.map(|v| v.0 as f32),
         }
     }
 }

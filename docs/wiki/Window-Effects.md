@@ -65,6 +65,8 @@ materials {
         report-backdrop false // tell the client how bright the backdrop is behind each shape
         // saturation 1.5 // optional, in place of the blur's
         // noise 0.02     // optional, in place of the blur's
+        // blur-passes 2  // optional, in place of `blur {}`'s
+        // blur-offset 1.5 // optional, in place of `blur {}`'s
     }
 }
 ```
@@ -74,6 +76,10 @@ A shape fading in with `materialize` on (the default) bends and lights the backd
 With `report-backdrop` on, niri tells the client how bright the blurred backdrop behind each of that material's shapes is (version 2 of `niri-blur-shapes-v1`), so it can turn a small piece of glass light or dark with what's behind it.
 The reading is coarse: an 8×8 version of the shape's area, read back from the GPU without waiting, at most four times a second per shape, and sent only when it moves noticeably.
 It works for non-xray shapes only, and it's off by default.
+
+With `blur-passes` or `blur-offset` set, the backdrop behind that material's shapes is blurred with them instead of `blur {}`'s, so big glass can frost more than small glass, as Apple's does: Figma's macOS kit frosts small glass at 6 and medium and large glass at 16.
+Each distinct blur costs a blur of its own: for xray, one more blur of the backdrop, redone only when it changes; for non-xray shapes, one more capture and blur of the area behind that blur's shapes, every frame they draw.
+niri keeps up to four such blurs per backdrop.
 
 Changing a material reloads live.
 
