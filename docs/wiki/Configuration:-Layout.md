@@ -584,6 +584,7 @@ layout {
         column-fill "full"
         ends "hard"
         soft-end-length 96
+        behind-bars true
         // material "smoke"
     }
 }
@@ -593,6 +594,7 @@ layout {
 - `overview`: `"fade"` (the default) fades the mat out as the overview opens, `"keep"` keeps it.
 - `column-fill`: how far down the mat goes under a column whose windows don't fill the height. `"full"` (the default) covers the full height under every column. `"tiles"` stops one gap below the column's last window, so the wallpaper shows under short columns. A column whose windows fill the working area still reaches the bottom of the screen.
 - `ends`: how the mat ends at the outermost columns. `"hard"` (the default) is a sharp edge one gap past them. `"soft"` fades the mat out over the outermost columns' last `soft-end-length` logical pixels, so it is fully transparent by their outer edges.
+- `behind-bars`: whether the mat covers the areas reserved by bars and other layer-shell exclusive zones. `true` (the default) runs it the full height of the screen, so a translucent bar sits on the mat. `false` stops it at the bars' edges, so they sit on the wallpaper. Areas reserved by `struts` are covered either way.
 - `material`: draw the mat as liquid glass with this named [material](./Window-Effects.md) from `materials {}`. The glass is drawn from the blurred wallpaper, using `blur {}`'s settings unless the material sets its own. An unknown name draws a solid mat.
 
 Windows keep their `geometry-corner-radius` and `clip-to-geometry`; the mat fills around the rounded corners.

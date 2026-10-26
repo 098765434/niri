@@ -39,15 +39,15 @@ pub struct MatGeometry {
     pub soft_ends: Option<[Rectangle<f64, Logical>; 2]>,
 }
 
-/// Where the mat goes for `columns`.
+/// Where the mat goes for `columns`, between `top` and `bottom` in view coordinates.
 ///
-/// `working_bottom` is the bottom of the working area: a column whose tiles reach it covers the
-/// view to its bottom, struts included.
+/// `working_bottom` is the bottom of the working area: a column whose tiles reach it covers down
+/// to `bottom`, struts included.
 pub fn mat_geometry(
     columns: &[MatColumn],
     config: &niri_config::Mat,
     gap: f64,
-    view_size: Size<f64, Logical>,
+    (top, bottom): (f64, f64),
     working_bottom: f64,
     scale: f64,
 ) -> Option<MatGeometry> {
@@ -81,23 +81,23 @@ pub fn mat_geometry(
     let prev = *bounds.last().unwrap();
     bounds.push(f64::max(prev, round(right + outer)));
 
-    let view_h = view_size.h;
+    let full_h = bottom - top;
     let height = |col: &MatColumn| match config.column_fill {
-        MatColumnFill::Full => view_h,
+        MatColumnFill::Full => full_h,
         MatColumnFill::Tiles => {
-            let bottom = col.bottom + gap;
+            let col_bottom = col.bottom + gap;
             // Allow for rounding of tile sizes.
-            if bottom >= working_bottom - 0.5 {
-                view_h
+            if col_bottom >= working_bottom - 0.5 {
+                full_h
             } else {
-                round(bottom).clamp(0., view_h)
+                (round(col_bottom) - top).clamp(0., full_h)
             }
         }
     };
 
     let slab_x = bounds[0];
     let slab_w = bounds[bounds.len() - 1] - slab_x;
-    let slab = Rectangle::new(Point::from((slab_x, 0.)), Size::from((slab_w, view_h)));
+    let slab = Rectangle::new(Point::from((slab_x, top)), Size::from((slab_w, full_h)));
 
     // The fades take at most half the slab each.
     let length = if soft {
@@ -110,9 +110,9 @@ pub fn mat_geometry(
     let inner_right = slab_x + slab_w - length;
 
     let heights: Vec<f64> = columns.iter().map(height).collect();
-    let cells = if heights.iter().all(|h| *h == view_h) {
-        let size = Size::from((inner_right - inner_left, view_h));
-        vec![Rectangle::new(Point::from((inner_left, 0.)), size)]
+    let cells = if heights.iter().all(|h| *h == full_h) {
+        let size = Size::from((inner_right - inner_left, full_h));
+        vec![Rectangle::new(Point::from((inner_left, top)), size)]
     } else {
         // The cells leave room for the fades, which keep the end columns' heights.
         let bounds: Vec<f64> = bounds
@@ -124,7 +124,7 @@ pub fn mat_geometry(
             .enumerate()
             .map(|(i, h)| {
                 let x = bounds[i];
-                Rectangle::new(Point::from((x, 0.)), Size::from((bounds[i + 1] - x, *h)))
+                Rectangle::new(Point::from((x, top)), Size::from((bounds[i + 1] - x, *h)))
             })
             .collect()
     };
@@ -133,9 +133,9 @@ pub fn mat_geometry(
         let left_h = heights[0];
         let right_h = heights[heights.len() - 1];
         [
-            Rectangle::new(Point::from((slab_x, 0.)), Size::from((length, left_h))),
+            Rectangle::new(Point::from((slab_x, top)), Size::from((length, left_h))),
             Rectangle::new(
-                Point::from((inner_right, 0.)),
+                Point::from((inner_right, top)),
                 Size::from((length, right_h)),
             ),
         ]
@@ -180,12 +180,14 @@ impl Mat {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
         columns: &[MatColumn],
         config: &niri_config::Mat,
         gap: f64,
         view_size: Size<f64, Logical>,
+        parent_area: Rectangle<f64, Logical>,
         working_bottom: f64,
         scale: f64,
     ) {
@@ -202,7 +204,16 @@ impl Mat {
             material
         });
 
-        self.geometry = mat_geometry(columns, config, gap, view_size, working_bottom, scale);
+        // The full view height, or the view less the bars' exclusive zones (`parent_area`
+        // still includes niri's own struts).
+        let span = if config.behind_bars {
+            (0., view_size.h)
+        } else {
+            let top = round_logical_in_physical(scale, parent_area.loc.y);
+            let bottom = round_logical_in_physical(scale, parent_area.loc.y + parent_area.size.h);
+            (top, bottom)
+        };
+        self.geometry = mat_geometry(columns, config, gap, span, working_bottom, scale);
 
         let Some(geo) = &self.geometry else {
             self.buffers.clear();
@@ -334,13 +345,11 @@ mod tests {
         MatColumn { x, width, bottom }
     }
 
-    fn view() -> Size<f64, Logical> {
-        Size::from((1920., 1080.))
-    }
+    const VIEW: (f64, f64) = (0., 1080.);
 
     fn geo(columns: &[MatColumn], config: &niri_config::Mat, scale: f64) -> MatGeometry {
         // gaps 8, no bottom strut
-        mat_geometry(columns, config, 8., view(), 1080., scale).unwrap()
+        mat_geometry(columns, config, 8., VIEW, 1080., scale).unwrap()
     }
 
     /// Checks that the soft ends and cells partition the slab's x range exactly.
@@ -356,7 +365,7 @@ mod tests {
         for cell in &cells {
             assert_eq!(cell.loc.x, x, "cell starts where the last ended");
             assert!(cell.size.w >= 0.);
-            assert_eq!(cell.loc.y, 0.);
+            assert_eq!(cell.loc.y, slab.loc.y);
             x = cell.loc.x + cell.size.w;
             // boundaries sit on physical pixels
             let phys = x * scale;
@@ -368,11 +377,11 @@ mod tests {
     #[test]
     fn off_or_empty() {
         let full = config(MatColumnFill::Full, MatEnds::Hard);
-        assert_eq!(mat_geometry(&[], &full, 8., view(), 1080., 1.), None);
+        assert_eq!(mat_geometry(&[], &full, 8., VIEW, 1080., 1.), None);
 
         let off = niri_config::Mat::default();
         let columns = [col(8., 100., 1072.)];
-        assert_eq!(mat_geometry(&columns, &off, 8., view(), 1080., 1.), None);
+        assert_eq!(mat_geometry(&columns, &off, 8., VIEW, 1080., 1.), None);
     }
 
     #[test]
@@ -426,12 +435,12 @@ mod tests {
         let columns = [col(8., 400., 500.), col(416., 400., 1072.)];
 
         // full: one slab cell, full view height regardless of the working area
-        let geo_full = mat_geometry(&columns, &full, 8., view(), 1000., 1.).unwrap();
+        let geo_full = mat_geometry(&columns, &full, 8., VIEW, 1000., 1.).unwrap();
         assert_eq!(geo_full.cells, vec![geo_full.slab]);
         assert_eq!(geo_full.slab.size.h, 1080.);
 
         // tiles: a skyline; the full-height column reaches the view bottom past a bottom strut
-        let geo_tiles = mat_geometry(&columns, &tiles, 8., view(), 1000., 1.).unwrap();
+        let geo_tiles = mat_geometry(&columns, &tiles, 8., VIEW, 1000., 1.).unwrap();
         let heights: Vec<f64> = geo_tiles.cells.iter().map(|c| c.size.h).collect();
         assert_eq!(heights, [508., 1080.]);
     }
@@ -458,6 +467,14 @@ mod tests {
         let geo_full = geo(&columns, &full, 1.);
         assert_eq!(geo_full.cells.len(), 1);
         assert_partition(&geo_full, 1.);
+
+        // a span short of the view: a bottom bar's exclusive zone
+        let tiles = config(MatColumnFill::Tiles, MatEnds::Hard);
+        let columns_bar = [col(8., 400., 500.), col(416., 400., 1032.)];
+        let geo_bar = mat_geometry(&columns_bar, &tiles, 8., (0., 1040.), 1040., 1.).unwrap();
+        assert_eq!((geo_bar.slab.loc.y, geo_bar.slab.size.h), (0., 1040.));
+        let heights: Vec<f64> = geo_bar.cells.iter().map(|c| c.size.h).collect();
+        assert_eq!(heights, [508., 1040.]);
 
         // a narrow strip: the fades meet in the middle
         let narrow = geo(&[col(8., 100., 1072.)], &full, 1.);
