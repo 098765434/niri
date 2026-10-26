@@ -1,6 +1,6 @@
 # Spec: desktop layers
 
-Status: implemented on `ocbk` · Target: niri fork + amane-shell's desktop widgets · Scope: a
+Status: implemented in `871b5ee5` · Target: niri fork + amane-shell's desktop widgets · Scope: a
 layer rule that puts a background layer on the backdrop as the desktop, and an IPC event that tells
 it when it can't be seen.
 
@@ -98,4 +98,3 @@ when it shows again. See amane-shell's `docs/widgets.md`.
 - `src/render_helpers/background_effect.rs`, `src/window/mapped.rs` (the effect alpha)
 - `src/layout/{mod,monitor,workspace}.rs` (coverage)
 - `niri-ipc/src/{lib,state}.rs`, `src/ipc/{server,client}.rs`
-- `docs/wiki/Configuration:-Layer-Rules.md`

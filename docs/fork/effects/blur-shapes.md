@@ -1,7 +1,8 @@
-# Blur shapes and liquid-glass materials
+# Blur shapes (`niri-blur-shapes-v1`)
 
-Status: implemented on `ocbk` (`13d945b5`, `454d9751`, `74b623a7`). User-facing
-docs: [Window Effects](../../wiki/Window-Effects.md).
+Status: implemented in `13d945b5` (shapes), `454d9751` (materials), `74b623a7` (one element id
+per shape), `3cde7327` (backdrop readings, protocol version 2), `a1a78bd0` (per-material blurs)
+and `7bef7001` (capture reach). The materials themselves are in [materials.md](materials.md).
 
 ## Usage
 
@@ -31,7 +32,7 @@ rectangles, each with its own opacity and look.
     These events are sent again on config reload.
 - `niri_blur_shapes_v1`
   - `reset` clears the pending shapes.
-  - `add_rounded_rect(x, y, width, height, radius_tl, radius_tr, radius_br, radius_bl, alpha, material, tint)`
+  - `add_rounded_rect(x, y, width, height, radius_top_left, radius_top_right, radius_bottom_right, radius_bottom_left, alpha, material, tint)`
     takes `fixed` values in surface-local logical px. The material is an id from
     the manager (0 = plain blur), and the tint is packed RGBA.
   - The state is double-buffered and applies on `wl_surface.commit`.
@@ -77,8 +78,7 @@ readings and materials on rules are in [materials.md](materials.md).
 `src/handlers/background_effect.rs`,
 `src/render_helpers/{background_effect,xray,framebuffer_effect}.rs`,
 `src/render_helpers/shaders/{glass.frag,mod.rs}`, `src/niri.rs`,
-`niri-config/src/{appearance,lib,window_rule}.rs`, `src/{layer,window}/mapped.rs`,
-`docs/wiki/Window-Effects.md`, `docs/wiki/Configuration:-{Layer,Window}-Rules.md`.
+`niri-config/src/{appearance,lib,window_rule}.rs`, `src/{layer,window}/mapped.rs`.
 
 ### Client
 
