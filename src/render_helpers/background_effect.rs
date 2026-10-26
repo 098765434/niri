@@ -76,6 +76,10 @@ pub struct RenderParams {
     pub material: Option<MaterialParams>,
     /// Premultiplied tint for the material.
     pub tint: [f32; 4],
+    /// Glass only: x ranges in `clip` over which the effect fades in from the left edge and out
+    /// to the right edge, as `[left start, left end, right start, right end]`; empty ranges
+    /// don't fade.
+    pub fade: [f32; 4],
     /// The shape's place in the surface's list, when its material reports the backdrop.
     pub report: Option<u32>,
 }
@@ -121,7 +125,8 @@ pub fn glass_uniforms(
     tint: [f32; 4],
     input_to_geo: Mat3,
     alpha: f32,
-) -> [Uniform<'static>; 5] {
+    fade: [f32; 4],
+) -> [Uniform<'static>; 6] {
     let (sin, cos) = material.light_angle.to_radians().sin_cos();
     let grown = if material.materialize {
         alpha.clamp(0., 1.)
@@ -131,6 +136,7 @@ pub fn glass_uniforms(
     [
         mat3_uniform("geo_to_input", input_to_geo.inverse()),
         Uniform::new("glass_tint", tint),
+        Uniform::new("glass_fade", fade),
         Uniform::new(
             "glass_shape",
             [
@@ -375,6 +381,7 @@ fn render_params_for_tile(
         exact_clip: false,
         material: None,
         tint: [0.; 4],
+        fade: [0.; 4],
         report: None,
     })
 }
@@ -431,6 +438,7 @@ fn render_params_for_shapes(
                 exact_clip: true,
                 material: material(shape.material),
                 tint: shape.tint,
+                fade: [0.; 4],
                 report: material(shape.material)
                     .is_some_and(|m| m.report_backdrop)
                     .then_some(index),
@@ -472,6 +480,7 @@ fn material_params(
         exact_clip: true,
         material: Some(material),
         tint: [0.; 4],
+        fade: [0.; 4],
         report: None,
     }
 }
