@@ -1,12 +1,4 @@
-<!--
-  This is a FORK of niri (YaLTeR/niri) on top of a tagged upstream release.
-  It adds gesture-progress IPC events, Mod-held window swipes and rounded,
-  fading liquid-glass blur shapes; everything else is stock.
-  See FORK.md for the delta, provenance, and the rebase/update workflow.
-  The rest of this README is upstream's.
--->
-
-> **Fork** of [niri](https://github.com/YaLTeR/niri) — adds live gesture-progress IPC events, Mod-held three-finger window swipes, and rounded, fading liquid-glass blur shapes. See **[FORK.md](FORK.md#at-a-glance)** for every change at a glance and how the fork is maintained.
+> **Fork** of [niri](https://github.com/YaLTeR/niri) with extra features — see **[FORK.md](FORK.md)**. The rest of this README is upstream's.
 
 <h1 align="center"><img alt="niri" src="https://github.com/user-attachments/assets/07d05cd0-d5dc-4a28-9a35-51bae8f119a0"></h1>
 <p align="center">A scrollable-tiling Wayland compositor.</p>
