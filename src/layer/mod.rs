@@ -25,6 +25,10 @@ pub struct ResolvedLayerRules {
     /// Whether to place this layer surface within the overview backdrop.
     pub place_within_backdrop: bool,
 
+    /// Whether this layer surface is the desktop: within the backdrop, above the other
+    /// backdrop layers, faded out with the overview, and taking input while it's closed.
+    pub desktop: bool,
+
     /// Whether to bob this window up and down.
     pub baba_is_float: bool,
 
@@ -71,6 +75,9 @@ impl ResolvedLayerRules {
             }
             if let Some(x) = rule.place_within_backdrop {
                 resolved.place_within_backdrop = x;
+            }
+            if let Some(x) = rule.desktop {
+                resolved.desktop = x;
             }
             if let Some(x) = rule.baba_is_float {
                 resolved.baba_is_float = x;

@@ -158,7 +158,7 @@ impl MappedLayer {
     }
 
     pub fn place_within_backdrop(&self) -> bool {
-        if !self.rules.place_within_backdrop {
+        if !self.rules.place_within_backdrop && !self.rules.desktop {
             return false;
         }
 
@@ -174,6 +174,12 @@ impl MappedLayer {
         true
     }
 
+    /// Whether this is a desktop layer: in the backdrop, faded with the overview, and taking
+    /// input outside it.
+    pub fn is_desktop(&self) -> bool {
+        self.rules.desktop && self.place_within_backdrop()
+    }
+
     pub fn bob_offset(&self) -> Point<f64, Logical> {
         if !self.rules.baba_is_float {
             return Point::from((0., 0.));
@@ -184,16 +190,18 @@ impl MappedLayer {
         Point::from((0., y))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn render_normal<R: NiriRenderer>(
         &self,
         mut ctx: RenderCtx<R>,
         ns: Option<usize>,
         location: Point<f64, Logical>,
         xray_pos: XrayPos,
+        fade: f32,
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
         let scale = Scale::from(self.scale);
-        let alpha = self.rules.opacity.unwrap_or(1.).clamp(0., 1.);
+        let alpha = self.rules.opacity.unwrap_or(1.).clamp(0., 1.) * fade;
 
         let bob_offset = self.bob_offset();
         let location = location + bob_offset;
@@ -251,16 +259,19 @@ impl MappedLayer {
             self.rules.background_effect.clone(),
             should_block_out,
             xray_pos,
+            fade,
             &mut |elem| push(elem.into()),
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn render_popups<R: NiriRenderer>(
         &self,
         mut ctx: RenderCtx<R>,
         ns: Option<usize>,
         location: Point<f64, Logical>,
         xray_pos: XrayPos,
+        fade: f32,
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
         if ctx.target.should_block_out(self.rules.block_out_from) {
@@ -268,7 +279,7 @@ impl MappedLayer {
         }
 
         let scale = Scale::from(self.scale);
-        let alpha = self.rules.opacity.unwrap_or(1.).clamp(0., 1.);
+        let alpha = self.rules.opacity.unwrap_or(1.).clamp(0., 1.) * fade;
 
         let bob_offset = self.bob_offset();
         let location = location + bob_offset;
@@ -320,6 +331,7 @@ impl MappedLayer {
                 effect,
                 false,
                 xray_pos,
+                fade,
                 &mut |elem| push(elem.into()),
             );
         }

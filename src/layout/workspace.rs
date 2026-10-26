@@ -1612,6 +1612,40 @@ impl<W: LayoutElement> Workspace<W> {
         floating.chain(scrolling)
     }
 
+    /// Whether the visible tiles cover the whole working area, each grown by the gap around it
+    /// (which the mat fills), so nothing drawn under the workspace shows.
+    pub fn is_working_area_covered(&self) -> bool {
+        let area = self.working_area;
+        // Round the area inward and the tiles outward, so float error leaves no slivers.
+        let area = Rectangle::<i32, Logical>::from_extremities(
+            (area.loc.x.ceil() as i32, area.loc.y.ceil() as i32),
+            (
+                (area.loc.x + area.size.w).floor() as i32,
+                (area.loc.y + area.size.h).floor() as i32,
+            ),
+        );
+        if area.is_empty() {
+            return false;
+        }
+
+        let gap = self.options.layout.gaps;
+        let tiles = self
+            .tiles_with_render_positions()
+            .filter(|(_, _, visible)| *visible)
+            .map(|(tile, pos, _)| {
+                let size = tile.tile_size();
+                Rectangle::<i32, Logical>::from_extremities(
+                    ((pos.x - gap).floor() as i32, (pos.y - gap).floor() as i32),
+                    (
+                        (pos.x + size.w + gap).ceil() as i32,
+                        (pos.y + size.h + gap).ceil() as i32,
+                    ),
+                )
+            });
+
+        area.subtract_rects(tiles).is_empty()
+    }
+
     pub fn tiles_with_render_positions_mut(
         &mut self,
         round: bool,

@@ -503,6 +503,9 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                              workspace_idx {workspace_idx}, active workspace {active_workspace_idx}"
                         );
                     }
+                    Event::DesktopObscured { output, obscured } => {
+                        println!("Desktop obscured on {output}: {obscured}");
+                    }
                     Event::ConfigLoaded { failed } => {
                         let status = if failed {
                             "with an error"

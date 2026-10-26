@@ -300,7 +300,7 @@ impl XdgShellHandler for State {
                 // This is a grab for a layer surface.
 
                 if let Some(mapped) = self.niri.mapped_layer_surfaces.get(layer) {
-                    if mapped.place_within_backdrop() {
+                    if mapped.place_within_backdrop() && !mapped.is_desktop() {
                         trace!("ignoring popup grab for a layer surface within overview backdrop");
                         let _ = PopupManager::dismiss_popup(&root, &popup);
                         return;

@@ -1708,6 +1708,18 @@ pub enum Event {
         /// Index of the active workspace.
         active_workspace_idx: usize,
     },
+    /// Whether anything under the workspaces shows on an output changed.
+    ///
+    /// The desktop is obscured while the overview is fully open (desktop layers fade out with
+    /// it), or while the overview is closed, no workspace switch is in progress, and the active
+    /// workspace's windows (each with the gap around it) cover its working area. A desktop layer
+    /// can stop drawing while it is obscured.
+    DesktopObscured {
+        /// Name of the output.
+        output: String,
+        /// Whether the desktop is obscured.
+        obscured: bool,
+    },
     /// The configuration was reloaded.
     ///
     /// You will always receive this event when connecting to the event stream, indicating the last

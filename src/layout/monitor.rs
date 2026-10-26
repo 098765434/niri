@@ -1681,6 +1681,16 @@ impl<W: LayoutElement> Monitor<W> {
         (InsertWorkspace::NewAt(last_idx + 1), dummy)
     }
 
+    /// Whether the active workspace's windows cover its working area while the view is still:
+    /// a workspace switch shows what's under the workspaces.
+    pub fn is_desktop_covered(&self) -> bool {
+        if self.workspace_switch.is_some() {
+            return false;
+        }
+
+        self.workspaces[self.active_workspace_idx].is_working_area_covered()
+    }
+
     pub fn render_above_top_layer(&self) -> bool {
         // Render above the top layer only if the view is stationary.
         if self.workspace_switch.is_some() || self.overview_progress.is_some() {

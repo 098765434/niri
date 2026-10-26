@@ -587,6 +587,7 @@ impl State {
         self.ipc_refresh_overview_progress();
         self.ipc_refresh_view_offset();
         self.ipc_refresh_workspace_switch();
+        self.ipc_refresh_desktop_obscured();
     }
 
     fn ipc_refresh_workspaces(&mut self) {
@@ -886,6 +887,34 @@ impl State {
         };
         state.apply(event.clone());
         server.send_event(event);
+    }
+
+    pub fn ipc_refresh_desktop_obscured(&mut self) {
+        let Some(server) = &self.niri.ipc_server else {
+            return;
+        };
+
+        let mut state = server.event_stream_state.borrow_mut();
+        let state = &mut state.desktop_obscured;
+
+        let mut events = Vec::new();
+        for output in self.niri.global_space.outputs() {
+            let obscured = self.niri.layout.is_desktop_obscured(output);
+            let name = output.name();
+            if state.outputs.get(&name) == Some(&obscured) {
+                continue;
+            }
+
+            events.push(Event::DesktopObscured {
+                output: name,
+                obscured,
+            });
+        }
+
+        for event in events {
+            state.apply(event.clone());
+            server.send_event(event);
+        }
     }
 
     pub fn ipc_refresh_casts(&mut self) {

@@ -5039,6 +5039,19 @@ impl<W: LayoutElement> Layout<W> {
         self.overview_progress.as_ref().map_or(0., |p| p.value())
     }
 
+    /// Whether nothing under the workspaces shows on `output`: the overview is fully open (where
+    /// desktop layers have faded out), or it's closed and the windows cover the working area.
+    pub fn is_desktop_obscured(&self, output: &Output) -> bool {
+        let Some(mon) = self.monitor_for_output(output) else {
+            return false;
+        };
+
+        match &self.overview_progress {
+            None => mon.is_desktop_covered(),
+            Some(_) => self.overview_progress_value() >= 1.,
+        }
+    }
+
     /// Scrolling and workspace-switch values of the focused output's active workspace.
     ///
     /// Returns `None` when there is no active monitor (no outputs connected).

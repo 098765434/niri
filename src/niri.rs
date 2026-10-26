@@ -1123,8 +1123,8 @@ impl State {
                     == wlr_layer::KeyboardInteractivity::OnDemand;
 
             if let Some(mapped) = self.niri.mapped_layer_surfaces.get(surface) {
-                // Check if it moved to the overview backdrop.
-                if mapped.place_within_backdrop() {
+                // Check if it moved to the overview backdrop (desktop layers keep input there).
+                if mapped.place_within_backdrop() && !mapped.is_desktop() {
                     good = false;
                 }
             } else {
@@ -1184,7 +1184,7 @@ impl State {
                     }
 
                     let mapped = self.niri.mapped_layer_surfaces.get(surface)?;
-                    if mapped.place_within_backdrop() {
+                    if mapped.place_within_backdrop() && !mapped.is_desktop() {
                         return None;
                     }
 
@@ -3188,7 +3188,8 @@ impl Niri {
                 .rev()
                 .find_map(|layer_surface| {
                     let mapped = self.mapped_layer_surfaces.get(layer_surface)?;
-                    if mapped.place_within_backdrop() {
+                    let desktop = mapped.is_desktop();
+                    if mapped.place_within_backdrop() && !desktop {
                         return None;
                     }
 
@@ -3196,10 +3197,13 @@ impl Niri {
                         layers.layer_geometry(layer_surface).unwrap().loc.to_f64();
                     layer_pos_within_output += mapped.bob_offset();
 
-                    // Background and bottom layers move together with the workspaces.
-                    let mon = self.layout.monitor_for_output(output)?;
-                    let (_, geo) = mon.workspace_under(pos_within_output)?;
-                    layer_pos_within_output += geo.loc;
+                    // Background and bottom layers move together with the workspaces; desktop
+                    // layers stay put.
+                    if !desktop {
+                        let mon = self.layout.monitor_for_output(output)?;
+                        let (_, geo) = mon.workspace_under(pos_within_output)?;
+                        layer_pos_within_output += geo.loc;
+                    }
 
                     let surface_type = WindowSurfaceType::POPUP | WindowSurfaceType::SUBSURFACE;
                     layer_surface
@@ -3344,13 +3348,18 @@ impl Niri {
         }
 
         let layers = layer_map_for_output(output);
-        let layer_surface_under = |layer, popup| {
+        let layer_surface_under = |layer, popup, desktop: bool| {
             layers
                 .layers_on(layer)
                 .rev()
                 .find_map(|layer_surface| {
                     let mapped = self.mapped_layer_surfaces.get(layer_surface)?;
-                    if mapped.place_within_backdrop() {
+                    if desktop {
+                        // Desktop layers stay put at the output's origin.
+                        if !mapped.is_desktop() {
+                            return None;
+                        }
+                    } else if mapped.place_within_backdrop() {
                         return None;
                     }
 
@@ -3359,7 +3368,7 @@ impl Niri {
                     layer_pos_within_output += mapped.bob_offset();
 
                     // Background and bottom layers move together with the workspaces.
-                    if matches!(layer, Layer::Background | Layer::Bottom) {
+                    if !desktop && matches!(layer, Layer::Background | Layer::Bottom) {
                         let mon = self.layout.monitor_for_output(output)?;
                         let (_, geo) = mon.workspace_under(pos_within_output)?;
                         layer_pos_within_output += geo.loc;
@@ -3385,8 +3394,9 @@ impl Niri {
                 .map(|(s, l)| (Some(s), (None, Some(l.clone()))))
         };
 
-        let layer_toplevel_under = |layer| layer_surface_under(layer, false);
-        let layer_popup_under = |layer| layer_surface_under(layer, true);
+        let layer_toplevel_under = |layer| layer_surface_under(layer, false, false);
+        let layer_popup_under = |layer| layer_surface_under(layer, true, false);
+        let desktop_under = |popup| layer_surface_under(Layer::Background, popup, true);
 
         let mapped_hit_data = |(mapped, hit): (&Mapped, HitType)| {
             let window = &mapped.window;
@@ -3434,8 +3444,10 @@ impl Niri {
                 .or_else(|| layer_toplevel_under(Layer::Top))
                 .or_else(|| layer_popup_under(Layer::Bottom))
                 .or_else(|| layer_popup_under(Layer::Background))
+                .or_else(|| desktop_under(true))
                 .or_else(|| layer_toplevel_under(Layer::Bottom))
-                .or_else(|| layer_toplevel_under(Layer::Background));
+                .or_else(|| layer_toplevel_under(Layer::Background))
+                .or_else(|| desktop_under(false));
         } else {
             if self.is_inside_hot_corner(output, pos_within_output) {
                 rv.hot_corner = true;
@@ -3451,7 +3463,8 @@ impl Niri {
             if !is_overview_open {
                 under = under
                     .or_else(|| layer_popup_under(Layer::Bottom))
-                    .or_else(|| layer_popup_under(Layer::Background));
+                    .or_else(|| layer_popup_under(Layer::Background))
+                    .or_else(|| desktop_under(true));
             }
 
             under = under.or_else(window_under);
@@ -3459,7 +3472,8 @@ impl Niri {
             if !is_overview_open {
                 under = under
                     .or_else(|| layer_toplevel_under(Layer::Bottom))
-                    .or_else(|| layer_toplevel_under(Layer::Background));
+                    .or_else(|| layer_toplevel_under(Layer::Background))
+                    .or_else(|| desktop_under(false));
             }
         }
 
@@ -4391,6 +4405,7 @@ impl Niri {
 
             push_popups_from_layer!(Layer::Bottom);
             push_popups_from_layer!(Layer::Background);
+            self.render_desktop_popups(ctx.r(), &layer_map, &mut |elem| push(elem.into()));
             push_normal_from_layer!(Layer::Bottom);
             push_normal_from_layer!(Layer::Background);
 
@@ -4424,6 +4439,7 @@ impl Niri {
                 push_popups_from_layer!(Layer::Bottom, ns, xray_pos, process!(geo));
                 push_popups_from_layer!(Layer::Background, ns, xray_pos, process!(geo));
             }
+            self.render_desktop_popups(ctx.r(), &layer_map, &mut |elem| push(elem.into()));
 
             mon.render_workspaces(ctx.r(), focus_ring, &mut |elem| push(elem.into()));
 
@@ -4547,16 +4563,35 @@ impl Niri {
         for_backdrop: bool,
     ) -> impl Iterator<Item = (&'a MappedLayer, Rectangle<i32, Logical>)> {
         // LayerMap returns layers in reverse stacking order.
-        layer_map.layers_on(layer).rev().filter_map(move |surface| {
-            let mapped = self.mapped_layer_surfaces.get(surface)?;
+        let layers = move |desktop: bool| {
+            layer_map.layers_on(layer).rev().filter_map(move |surface| {
+                let mapped = self.mapped_layer_surfaces.get(surface)?;
 
-            if for_backdrop != mapped.place_within_backdrop() {
-                return None;
-            }
+                if for_backdrop != mapped.place_within_backdrop() {
+                    return None;
+                }
 
-            let geo = layer_map.layer_geometry(surface)?;
-            Some((mapped, geo))
-        })
+                // Desktop layers go above the rest of the backdrop (the wallpaper).
+                if desktop != mapped.is_desktop() {
+                    return None;
+                }
+
+                let geo = layer_map.layer_geometry(surface)?;
+                Some((mapped, geo))
+            })
+        };
+
+        layers(true).chain(layers(false))
+    }
+
+    /// The opacity a layer surface is drawn with on top of its rules: a desktop layer fades out
+    /// as the overview opens.
+    fn layer_fade(&self, mapped: &MappedLayer) -> f32 {
+        if !mapped.is_desktop() {
+            return 1.;
+        }
+
+        (1. - self.layout.overview_progress_value()).clamp(0., 1.) as f32
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -4571,9 +4606,14 @@ impl Niri {
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
         for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop) {
+            let fade = self.layer_fade(mapped);
+            if fade <= 0. {
+                continue;
+            }
+
             let loc = geo.loc.to_f64();
             let xray_pos = xray_pos.offset(loc);
-            mapped.render_normal(ctx.r(), ns, loc, xray_pos, push);
+            mapped.render_normal(ctx.r(), ns, loc, xray_pos, fade, push);
         }
     }
 
@@ -4589,9 +4629,43 @@ impl Niri {
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
         for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop) {
+            // A desktop layer's popups (menus) go above the windows: see render_desktop_popups().
+            if mapped.is_desktop() {
+                continue;
+            }
+
+            let fade = self.layer_fade(mapped);
+            if fade <= 0. {
+                continue;
+            }
+
             let loc = geo.loc.to_f64();
             let xray_pos = xray_pos.offset(loc);
-            mapped.render_popups(ctx.r(), ns, loc, xray_pos, push);
+            mapped.render_popups(ctx.r(), ns, loc, xray_pos, fade, push);
+        }
+    }
+
+    /// Renders the popups of desktop layers, which stay put at the output's origin like the
+    /// layers themselves but go with the other background popups, above the windows.
+    fn render_desktop_popups<R: NiriRenderer>(
+        &self,
+        mut ctx: RenderCtx<R>,
+        layer_map: &LayerMap,
+        push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
+    ) {
+        for (mapped, geo) in self.layers_in_render_order(layer_map, Layer::Background, true) {
+            if !mapped.is_desktop() {
+                continue;
+            }
+
+            let fade = self.layer_fade(mapped);
+            if fade <= 0. {
+                continue;
+            }
+
+            let loc = geo.loc.to_f64();
+            let xray_pos = XrayPos::default().offset(loc);
+            mapped.render_popups(ctx.r(), None, loc, xray_pos, fade, push);
         }
     }
 
