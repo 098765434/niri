@@ -9,7 +9,48 @@ the same gaps over the wallpaper.
 This document covers the design and the planned implementation. User-facing docs will go in
 [`Configuration:-Layout.md`](../../wiki/Configuration:-Layout.md) once the design settles.
 
-## 1. Goal
+## Usage
+
+Paint a backing behind the scrolling layout's windows. It fills the gaps between and around the columns, the area behind exclusive-zone bars, and the corners outside rounded windows, so in normal mode the layout reads as one clean surface.
+Past the ends of the strip and on empty workspaces, the wallpaper stays visible.
+As the overview opens, the mat fades out, showing the same gaps over the wallpaper, with no change to the layout.
+
+Floating windows get no mat.
+Writing a `mat {}` block turns it on; `off` turns it off again.
+
+```kdl
+layout {
+    gaps 8
+
+    mat {
+        // off
+        color "#000000"
+        overview "fade"
+        column-fill "full"
+        ends "hard"
+        soft-end-length 96
+        behind-bars true
+        // material "smoke"
+    }
+}
+```
+
+- `color`: the mat colour. With `material`, it is the glass tint instead, for example `"#000000c0"` for dark smoked glass.
+- `overview`: `"fade"` (the default) fades the mat out as the overview opens, `"keep"` keeps it.
+- `column-fill`: how far down the mat goes under a column whose windows don't fill the height. `"full"` (the default) covers the full height under every column. `"tiles"` stops one gap below the column's last window, so the wallpaper shows under short columns. A column whose windows fill the working area still reaches the bottom of the screen.
+- `ends`: how the mat ends at the outermost columns. `"hard"` (the default) is a sharp edge one gap past them. `"soft"` fades the mat out over the outermost columns' last `soft-end-length` logical pixels, so it is fully transparent by their outer edges.
+- `behind-bars`: whether the mat covers the areas reserved by bars and other layer-shell exclusive zones. `true` (the default) runs it the full height of the screen, so a translucent bar sits on the mat. `false` stops it at the bars' edges, so they sit on the wallpaper. Areas reserved by `struts` are covered either way.
+- `material`: draw the mat as liquid glass with this named [material](../effects/materials.md) from `materials {}`. The glass is drawn from the blurred wallpaper, using `blur {}`'s settings unless the material sets its own. An unknown name draws a solid mat.
+
+Windows keep their `geometry-corner-radius` and `clip-to-geometry`; the mat fills around the rounded corners.
+
+> [!NOTE]
+> Layer surfaces that blur with xray (the default for layer-rule blur) blur the wallpaper, not the mat, even where the mat covers the area behind them.
+> To have a translucent bar sit on a solid mat, set `xray false` in its layer rule's `background-effect`.
+
+## Design / internals
+
+### 1. Goal
 
 Desktop noise between windows (bits of wallpaper in gaps and in the corners of rounded
 windows) makes the layout look busy. The mat replaces that with a flat surface, usually
@@ -43,7 +84,7 @@ Design choices made with the user:
 - **Configurable:** how short columns are filled (`column-fill`), how the strip ends look
   (`ends`: hard or soft), and whether the mat is solid or glass (`material`).
 
-## 2. Architecture
+### 2. Architecture
 
 The mat is purely visual: it only reads geometry the scrolling layout already computes each
 frame, and stores no layout state. It has no input region and no IPC.
@@ -63,7 +104,7 @@ src/layout/mat.rs (new)
               └─ glass:  Xray::render with RenderParams { geometry: cell, clip: slab, material }
 ```
 
-### 2.1 Geometry — `fn mat_geometry` in `src/layout/mat.rs`
+#### 2.1 Geometry — `fn mat_geometry` in `src/layout/mat.rs`
 
 A free function so it can be unit tested. Inputs: each column's render x position
 (`col_x + render_offset.x - view_pos`), width and tile-stack bottom; the gap; `view_size`;
@@ -95,14 +136,14 @@ A free function so it can be unit tested. Inputs: each column's render x positio
 through resize animations. With `column-fill "tiles"`, a column counts as full-height when its
 tiles reach the working area's bottom, and its cell then runs to the view bottom.
 
-### 2.2 State — `Mat` on `ScrollingSpace`
+#### 2.2 State — `Mat` on `ScrollingSpace`
 
 A `Mat` struct, owned by `ScrollingSpace`, holds the config and one `SolidColorBuffer` per
 cell, kept across frames so damage tracking only sees real changes. It also holds the slab
 and the soft-end rectangles. `update_render_elements` calls `mat_geometry()` and resizes the
 buffers. With `column-fill "full"` there is one buffer.
 
-### 2.3 Rendering
+#### 2.3 Rendering
 
 - `ScrollingSpace::render` takes a new `mat_alpha: f32` and pushes the mat **after** the
   tile loop. niri renders front-to-back, so the mat ends up below every tile, its shadow,
@@ -139,39 +180,12 @@ overview zoom and workspace offsets come for free. If the glass shader failed to
 `Xray::render` already falls back to plain blur. If there is no xray context, the mat
 falls back to solid colour.
 
-### 2.4 Config — `niri-config/src/layout.rs`
+#### 2.4 Config — `niri-config/src/layout.rs`
 
 A `mat` block next to `border`, with a matching `MatPart` for merging, following the
-`FocusRing`/`Border` pattern:
-
-```kdl
-layout {
-    gaps 8
-
-    mat {
-        // off
-        color "#000000"
-        overview "fade"          // "fade" (default) or "keep"
-        column-fill "full"       // "full" (default) or "tiles"
-        ends "hard"              // "hard" (default) or "soft"
-        soft-end-length 96       // logical px; only used with ends "soft"
-        behind-bars true         // false: stop at the bars' exclusive zones
-        // material "smoke"      // draw as liquid glass with this named material
-    }
-
-    border { off; }              // the mat replaces the black border
-}
-
-// Existing block, shared with niri-blur-shapes-v1.
-materials {
-    material "smoke" {
-        refraction 6
-        bevel 24
-        rim 0.3
-        tint 1.2
-    }
-}
-```
+`FocusRing`/`Border` pattern. The keys are in [Usage](#usage). With the mat on, the black
+`border` the mat replaces can go (`border { off; }`). A `material` comes from the existing
+`materials {}` table, shared with `niri-blur-shapes-v1`.
 
 - **Off by default**, so stock configs render exactly as before. Writing a `mat {}` block turns
   it on (no `on` needed, unlike `border`); `off` inside it turns it off again.
@@ -182,16 +196,16 @@ materials {
 - No window-rule form: floating windows never get a mat, and per-window opt-outs would punch
   holes the cell partition is designed to avoid.
 
-## 3. Behaviour details
+### 3. Behaviour details
 
-### 3.1 Overview transition
+#### 3.1 Overview transition
 
 Alpha follows the overview's own progress, including gesture-driven opens, so it tracks the
 fingers the same way the zoom does. The spring's overshoot is clamped. During a plain
 workspace switch (no overview) the mat stays at full alpha. A glass mat fades the same way:
 its alpha goes to the xray element.
 
-### 3.2 Animations
+#### 3.2 Animations
 
 | Event | Mat behaviour |
 |-------|---------------|
@@ -207,7 +221,7 @@ its alpha goes to the xray element.
 The two strip-end pops may be worth smoothing by easing the slab's x extent toward its
 target with the `window-movement` animation config. Decide after trying it live.
 
-### 3.3 Short columns — `column-fill`
+#### 3.3 Short columns — `column-fill`
 
 A column's tiles may not fill the height (fixed window heights, or a single tile set
 shorter than the working area).
@@ -226,7 +240,7 @@ With glass and `"tiles"`, the rim follows the slab (§2.3). The bottom of a shor
 cut with no rim. If that looks wrong live, the fallback is clipping each cell to its own rect,
 which puts rims on each cell's bottom edge and also on its sides between columns.
 
-### 3.4 Interaction with blur / xray
+#### 3.4 Interaction with blur / xray
 
 In this fork, layer surfaces such as the amane bar blur with **xray** by default. Xray samples
 the background layer and backdrop, not the workspace contents, so an xray-blurred
@@ -240,7 +254,7 @@ behind it.
   same blur without the mat's tint and rims, which is close enough that it may not need
   fixing. Check live.
 
-## 4. Strip ends — `ends`
+### 4. Strip ends — `ends`
 
 Two options are kept, both configurable:
 
@@ -265,7 +279,7 @@ Considered and dropped for now: covering the full view width whenever the worksp
 column, and snapping a strip end to the view edge when it's close. Either can come back as
 another `ends` value if live use shows a need.
 
-## 5. Verification
+### 5. Verification
 
 - **Unit tests** for `mat_geometry`:
   - no columns → `None`;
@@ -290,7 +304,7 @@ another `ends` value if live use shows a need.
   mat on, while scrolling and during the overview transition. The amane glass measurements
   showed per-shape glass cost adds up quickly on the Radeon 860M.
 
-## 6. Known limitations (draft)
+### 6. Known limitations (draft)
 
 - Strip-end pops on open/close, softened but not removed by `ends "soft"` (§3.2).
 - An xray-blurred bar shows wallpaper rather than a solid mat (§3.4).
@@ -299,7 +313,7 @@ another `ends` value if live use shows a need.
 - Tiles in tabbed columns are fine (one column, one width). Tab indicators drawn outside
   the column sit on the mat.
 
-## 7. Fit with the fork's values
+### 7. Fit with the fork's values
 
 Purely visual behaviour in the compositor. It only reads existing geometry, adds no layout
 state, no IPC, and no change to tiling or resizing, and it's per-workspace and so

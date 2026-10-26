@@ -3,7 +3,17 @@
 Status: implemented on `ocbk` (`13d945b5`, `454d9751`, `74b623a7`). User-facing
 docs: [Window Effects](../../wiki/Window-Effects.md).
 
-## Why
+## Usage
+
+This fork offers `niri-blur-shapes-v1`: instead of a region of rectangles, a surface sends rounded rectangles, each with its own corner radii and opacity.
+niri draws each with antialiased corners at its opacity, so a client with many rounded pieces of glass (such as a control center) gets blur exactly in their shape that fades with them.
+A surface with blur shapes is treated like one with a blur region: blur is on unless a rule says `blur false`.
+
+A shape can also name a [material](materials.md), a liquid-glass look niri draws over the blurred background.
+
+## Design / internals
+
+### Why
 
 `ext-background-effect-v1` describes blur as a region of integer rectangles: no
 rounded corners and no fade. A shell with many rounded pieces of glass (a
@@ -11,7 +21,7 @@ control centre, cards that swell open) gets square, all-or-nothing blur. This
 fork adds a private protocol in which the client describes its blur as rounded
 rectangles, each with its own opacity and look.
 
-## Protocol — `niri-blur-shapes-v1`
+### Protocol — `niri-blur-shapes-v1`
 
 `resources/niri-blur-shapes-v1.xml`, handled in `src/protocols/blur_shapes.rs`.
 
@@ -33,7 +43,7 @@ rectangles, each with its own opacity and look.
 A surface with blur shapes is treated like one with a blur region: blur is on
 unless a rule says `blur false`.
 
-## Rendering
+### Rendering
 
 - Each shape is drawn through the existing corner-rounding shader, half a
   physical pixel inside the shape, so it stays under the client's own
@@ -55,73 +65,12 @@ unless a rule says `blur false`.
   smithay pair instances by geometry, and a frame could keep a stale rectangle
   of frost (`74b623a7`).
 
-## Materials
+### Materials
 
-A `materials {}` config block (`niri-config/src/appearance.rs`) defines named
-looks that shapes pick by id. They are drawn by
-`src/render_helpers/shaders/glass.frag`:
+Shapes pick a named material by id. The `materials {}` config, the glass shader, backdrop
+readings and materials on rules are in [materials.md](materials.md).
 
-- SDF-normal refraction at the edge, with red/blue parting (`dispersion`).
-- The lip bends the backdrop in from past the edge, as the recovered macOS 26
-  glass shaders do (sampling outward along the SDF normal). `74b623a7` had it
-  magnify inwards because the capture stopped at the shape's edge; now
-  `render_shapes` grows each blur group's capture by the material's
-  `refraction`, so the rim shows real backdrop.
-- A rim hairline lit from `light-angle`, with a far-edge catch (`far-rim`, Apple's
-  opposite fill light), a specular highlight, and a separate `glow` over the
-  bevel's lit sides (a quarter of `rim` unless set).
-- With `tone` below 1, the backdrop's brightness is first squeezed toward the
-  tint's side (dark tint: `c·tone`; light tint: `1 − (1 − c)·tone`), as Apple's
-  darken/lighten layers do, so thin tints stay readable.
-- The client's tint is laid on. With `adaptive-tint`, it is thickened over a
-  backdrop of similar brightness.
-- Optional `saturation` / `noise` override the blur's own values.
-- With `materialize` (on by default), `glass_uniforms` scales the refraction,
-  dispersion, rim and specular by the element's alpha, so a shape fading in
-  builds its lens up instead of showing a finished lens at low opacity.
-
-Changing a material reloads live. A name that isn't defined draws plain blur.
-The shader follows kwin-effects-glass and Niri-glass (both GPL-3.0).
-
-### Backdrop readings (`report-backdrop`)
-
-`src/render_helpers/backdrop.rs`. For a non-xray shape whose material reports
-it, `render_params_for_shapes` keeps the shape's index in its list
-(`RenderParams.report`).
-- **Measure:** the `FramebufferSampleElement` drawing it blits its area of the
-  blurred capture down to 8×8 and reads it into a pixel-pack buffer behind a
-  fence. Nothing waits for the GPU. Each shape is measured at most every
-  250 ms.
-- **Report:** `render_for_tile`, on a later frame, maps the buffers whose
-  fences have passed, takes the mean luminance, and sends `backdrop` when it
-  moved by more than 0.08 since the last reading sent.
-- **Limits:** a reading lands with the next frame drawn after it, so a change
-  that redraws a single frame and then rests reports late, at the next redraw.
-  A surface destroyed with a reading in flight leaves its 256-byte buffer
-  behind, since no GL context is current to delete it then.
-
-### Materials on rules
-
-`background-effect { material "name" }` in a layer or window rule, or in its
-`popups {}` block, draws the rule's effect as that material. This is for
-surfaces that can't send shapes: amane's xdg-popups (menus, tooltips) have no
-blur-shapes object of their own.
-
-- The name is resolved in `BackgroundEffect::update_render_elements`, into
-  `Options.material`, on every update. A reloaded material therefore damages
-  through the options comparison.
-- `render_for_tile` turns the geometry-shaped params into a single blur shape
-  (`material_params`): the clip is the geometry inset by half a pixel, with the
-  rule's corner radius, and `exact_clip` is set. From there the shape path draws
-  it, both non-xray (`render_shapes`) and xray.
-- The tint is clear: the client fills its card itself, so it can follow its
-  theme. Adaptive tint then has nothing to thicken.
-- A surface with its own blur region (ext-background-effect, clip `None`) keeps
-  plain blur.
-- `BackgroundEffect`, `BackgroundEffectRule` and `ResolvedPopupsRules` are no
-  longer `Copy`, because of the name. The render paths clone them.
-
-## Touched files
+### Touched files
 
 `resources/niri-blur-shapes-v1.xml`, `src/protocols/{blur_shapes,raw,mod}.rs`,
 `src/render_helpers/backdrop.rs`,
@@ -131,7 +80,7 @@ blur-shapes object of their own.
 `niri-config/src/{appearance,lib,window_rule}.rs`, `src/{layer,window}/mapped.rs`,
 `docs/wiki/Window-Effects.md`, `docs/wiki/Configuration:-{Layer,Window}-Rules.md`.
 
-## Client
+### Client
 
 amane's `LayerWindow::blur_shapes` (fork,
 [098765434/amane](https://github.com/098765434/amane), `docs/fork/blur.md`). It

@@ -4,7 +4,40 @@ Status: implemented on `ocbk` · Target: niri fork + amane-shell's desktop widge
 layer rule that puts a background layer on the backdrop as the desktop, and an IPC event that tells
 it when it can't be seen.
 
-## 1. Goal
+## Usage
+
+### Layer rule: `desktop`
+
+Set to `true` to make the surface the desktop: a layer in the backdrop, like
+[`place-within-backdrop`](../../wiki/Configuration:-Layer-Rules.md#place-within-backdrop), that stays put while workspaces switch and
+doesn't shrink in the overview, but sits above the other backdrop layers (the wallpaper), takes
+input wherever no window is while the overview is closed, and fades out as the overview opens, in
+step with the gesture, along with its background effect. Its popups (menus) show above the
+windows.
+
+As with the backdrop, the surface only shows through workspaces with a transparent
+`background-color` (in `layout`), and only *background* layer surfaces that ignore exclusive zones
+can be one.
+
+The `DesktopObscured` event on the [IPC](../../wiki/IPC.md) event stream tells a desktop layer when nothing
+under the workspaces shows on its output, so it can stop drawing.
+
+```kdl
+// Desktop widgets on the wallpaper.
+layout {
+    background-color "transparent"
+}
+
+layer-rule {
+    match namespace="^amane\\.widgets\\."
+
+    desktop true
+}
+```
+
+## Design / internals
+
+### 1. Goal
 
 amane-shell's desktop widgets are a clear Background-layer surface with frosted cards on it. Drawn
 as a stock background layer, niri copies it into every workspace (`scale_relocate_crop`): the cards
@@ -19,7 +52,7 @@ should behave like things on the wallpaper:
 The wallpaper itself already does the first part, from `place-within-backdrop` with a transparent
 `layout { background-color }`.
 
-## 2. The `desktop` layer rule
+### 2. The `desktop` layer rule
 
 `layer-rule { desktop true }`, resolved into `ResolvedLayerRules::desktop`. It applies only where
 `place-within-backdrop` would (a Background layer with `exclusive_zone == DontCare`):
@@ -43,7 +76,7 @@ The wallpaper itself already does the first part, from `place-within-backdrop` w
   workspace's Background layers, both only while the overview is closed, as for other background
   layers.
 
-## 3. `DesktopObscured` IPC event
+### 3. `DesktopObscured` IPC event
 
 ```rust
 DesktopObscured { output: String, obscured: bool }
@@ -66,13 +99,13 @@ are taken as opaque: a translucent or frosted window that covers the area counts
 A switch in progress or an overview anywhere between closed and open counts as visible: either
 shows what's under the workspaces.
 
-## 4. Client
+### 4. Client
 
 amane's `Desktop` service holds the event per output. amane-shell's widgets freeze their surface
 (draw nothing, commit nothing) while their output's desktop is obscured, and catch up in one frame
 when it shows again. See amane-shell's `docs/widgets.md`.
 
-## 5. Files
+### 5. Files
 
 - `niri-config/src/{layer_rule,lib}.rs`, `src/layer/{mod,mapped}.rs`
 - `src/niri.rs` (render order, fade, desktop popups, input, focus), `src/handlers/xdg_shell.rs`

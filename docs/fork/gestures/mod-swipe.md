@@ -3,11 +3,42 @@
 Status: implemented (branch `ocbk`) · Scope: while Mod is held, three-finger touchpad swipes
 act on the focused window instead of scrolling the view or switching workspaces.
 
-User-facing docs: [Gestures → Window Swipes](../../wiki/Gestures.md#window-swipes) and
-[`gestures { mod-swipe }`](../../wiki/Configuration:-Gestures.md#mod-swipe). This document
-covers the design and the implementation, for maintaining and tuning the feature.
+[Usage](#usage) is the user-facing part. The rest covers the design and the implementation,
+for maintaining and tuning the feature.
 
-## 1. Goal
+## Usage
+
+### Window swipes
+
+While holding <kbd>Mod</kbd>, three-finger swipes act on the focused window instead:
+
+- **Up**: the window follows your fingers and fades.
+  Release far or fast enough to close it, otherwise it springs back.
+  If the window doesn't close (for example, it asks to save changes), it returns to its place.
+- **Down**: the window nudges down, then maximizes to the edges once the swipe goes far enough.
+- **Left** / **Right**: the column steps one [preset width](../../wiki/Configuration:-Layout.md#preset-column-widths) narrower / wider for every stretch of movement, so one long swipe can step several sizes.
+  After the widest preset, it goes to full width; it stops at the narrowest preset and at full width.
+
+Releasing <kbd>Mod</kbd> mid-swipe cancels it.
+You can disable window swipes [in the config](#config-mod-swipe).
+
+### Config: `mod-swipe`
+
+While holding <kbd>Mod</kbd>, three-finger touchpad swipes act on the focused window: up closes it, down maximizes it to the edges, and left/right step the column through the preset widths.
+
+Set `off` to disable this and keep the normal three-finger swipes even while <kbd>Mod</kbd> is held.
+
+```kdl
+gestures {
+    mod-swipe {
+        off
+    }
+}
+```
+
+## Design / internals
+
+### 1. Goal
 
 One modal rule: *hold Mod, then swipe*. Releasing Mod disarms the layer. The vertical axis
 is continuous and follows the fingers; the horizontal axis is discrete and steps.
@@ -28,7 +59,7 @@ Design choices made with the user:
 - **Deltas follow the fingers** regardless of the natural-scroll setting, like the
   four-finger overview gesture.
 
-## 2. Architecture
+### 2. Architecture
 
 The gesture state lives in the layout, next to `interactive_move`; input only routes events
 and performs side effects the layout can't (sending `close` to a client, timers).
@@ -45,7 +76,7 @@ on_gesture_swipe_end    ─────────────▶ Layout::windo
 on_keyboard (Mod released) ──────────▶ Layout::window_swipe_cancel()
 ```
 
-### 2.1 Activation — `src/input/mod.rs`
+#### 2.1 Activation — `src/input/mod.rs`
 
 - `mod_swipe_armed()` is true when `gestures.mod-swipe` isn't `off` and the keyboard's
   modifier state contains the configured Mod key (`backend.mod_key(...)`, so it follows
@@ -60,7 +91,7 @@ on_keyboard (Mod released) ──────────▶ Layout::window_swip
 - `on_keyboard`: inside the XKB filter, after the modifier state updates, a window swipe
   in progress is cancelled as soon as the Mod key is no longer held.
 
-### 2.2 Gesture state — `src/layout/window_swipe.rs`
+#### 2.2 Gesture state — `src/layout/window_swipe.rs`
 
 `WindowSwipe<W>` holds the window id, the movement before an axis is chosen, the chosen
 `Axis`, a `SwipeTracker` for vertical movement (reused from `src/input/swipe_tracker.rs`
@@ -76,7 +107,7 @@ step, and two flags: `bumped` (end-of-range cue played) and `maximized` (down co
   changes. If the tile is gone, the update is a no-op; `Layout::remove_window` also drops
   the state for that window.
 
-### 2.3 Tile visuals — `src/layout/tile.rs`
+#### 2.3 Tile visuals — `src/layout/tile.rs`
 
 - `swipe_offset` is added in `Tile::render_offset()`, alongside `interactive_move_offset`.
   Every caller of the render offset — including the close-animation start position — sees
@@ -89,7 +120,7 @@ step, and two flags: `bumped` (end-of-range cue played) and `maximized` (down co
   animation code was needed.
 - `swipe_closing` marks a tile that was swiped away and is waiting for its client to close.
 
-### 2.4 Close flight — `src/layout/closing_window.rs`
+#### 2.4 Close flight — `src/layout/closing_window.rs`
 
 `ClosingWindow` gained a `fly_y` distance, applied over the close animation's progress. The
 scrolling and floating `start_close_animation_for_window` set it from
@@ -97,7 +128,7 @@ scrolling and floating `start_close_animation_for_window` set it from
 view — so a swiped-away window keeps travelling up while it fades, instead of stopping
 where the fingers let go.
 
-### 2.5 Width stepping — `src/layout/scrolling.rs`
+#### 2.5 Width stepping — `src/layout/scrolling.rs`
 
 `Column::step_width(forwards) -> bool` is a clamped variant of `Column::toggle_width`:
 
@@ -112,9 +143,9 @@ It's plumbed as `ScrollingSpace::step_window_width` → `Workspace::step_window_
 `Layout::step_window_width`. Floating windows have no column, so they return `false` and
 get the bump cue.
 
-## 3. Behaviour details
+### 3. Behaviour details
 
-### 3.1 Up — close
+#### 3.1 Up — close
 
 - Offset is `pos × view_height / 300`, so one view height of window travel takes as much
   finger movement as a full workspace switch.
@@ -128,7 +159,7 @@ get the bump cue.
   dialogs and clients that ignore close. A new swipe on the same window first springs the
   held tile back.
 
-### 3.2 Down — maximize
+#### 3.2 Down — maximize
 
 - Up to the threshold, the offset is rubber-banded (stiffness 0.5, limit 48 px), so the
   window acknowledges the gesture without travelling far.
@@ -137,14 +168,14 @@ get the bump cue.
   Further movement in the same swipe is ignored.
 - A window that's already maximized or fullscreen only springs back.
 
-### 3.3 Left / right — width
+#### 3.3 Left / right — width
 
 - Every 60 units of horizontal travel steps one preset; the leftover carries over, so
   wobbling back and forth near a boundary doesn't fire repeatedly.
 - At the end of the range, the tile jumps 16 px in the swipe direction and springs back —
   once per gesture.
 
-### 3.4 Cancellation
+#### 3.4 Cancellation
 
 The tile springs back from wherever it is when any of these happen:
 
@@ -154,7 +185,7 @@ The tile springs back from wherever it is when any of these happen:
 - A horizontal swipe ends — it never moves the tile vertically, but this clears any
   leftover offset.
 
-## 4. Tuning
+### 4. Tuning
 
 All thresholds are constants at the top of `src/layout/window_swipe.rs`, in raw touchpad
 units (libinput unaccelerated deltas) unless noted:
@@ -173,7 +204,7 @@ units (libinput unaccelerated deltas) unless noted:
 
 The close timeout is `SWIPED_WINDOW_CLOSE_TIMEOUT` (1 s) in `src/input/mod.rs`.
 
-## 5. Configuration
+### 5. Configuration
 
 ```kdl
 gestures {
@@ -188,7 +219,7 @@ Defined as `ModSwipe` in `niri-config/src/gestures.rs`; the config test in
 `niri-config/src/lib.rs` covers parsing and merging, and `niri-config/tests/wiki-parses.rs`
 checks the wiki snippets.
 
-## 6. Verification
+### 6. Verification
 
 - `cargo test` — targeted layout tests in `src/layout/tests.rs`:
   `step_window_width_clamps_at_ends`, `step_window_width_from_full_width`,
@@ -201,7 +232,7 @@ checks the wiki snippets.
   prompt, releasing Mod mid-swipe, and that swipes without Mod and four-finger overview
   are unchanged.
 
-## 7. Known limitations
+### 7. Known limitations
 
 - The window lifts and fades while swiped up but doesn't shrink; a scale factor would
   have to be threaded through `Tile::render_inner`.
