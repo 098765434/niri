@@ -60,20 +60,6 @@ Switch workspaces with three-finger vertical swipes.
 
 Move the view horizontally with three-finger horizontal swipes.
 
-#### Window Swipes
-
-While holding <kbd>Mod</kbd>, three-finger swipes act on the focused window instead:
-
-- **Up**: the window follows your fingers and fades.
-  Release far or fast enough to close it, otherwise it springs back.
-  If the window doesn't close (for example, it asks to save changes), it returns to its place.
-- **Down**: the window nudges down, then maximizes to the edges once the swipe goes far enough.
-- **Left** / **Right**: the column steps one [preset width](./Configuration:-Layout.md#preset-column-widths) narrower / wider for every stretch of movement, so one long swipe can step several sizes.
-  After the widest preset, it goes to full width; it stops at the narrowest preset and at full width.
-
-Releasing <kbd>Mod</kbd> mid-swipe cancels it.
-You can disable window swipes [in the config](./Configuration:-Gestures.md#mod-swipe).
-
 #### Open and Close the Overview
 
 <sup>Since: 25.05</sup>

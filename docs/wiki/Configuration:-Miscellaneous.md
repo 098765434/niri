@@ -214,37 +214,6 @@ overview {
 }
 ```
 
-#### `workspace-gap`
-
-<sup>Fork</sup>
-
-Set the space between workspaces in the overview, in logical pixels on screen.
-By default it is the normal view's space between workspaces, zoomed out with them.
-
-The space changes smoothly from the normal view's [`workspace-gap`](./Configuration:-Layout.md#workspace-gap) as the overview opens, following gestures too.
-
-```kdl
-overview {
-    workspace-gap 24
-}
-```
-
-#### `window-gap`
-
-<sup>Fork</sup>
-
-Set the space between windows in the overview, in logical pixels on screen: between columns, and between windows stacked in a column.
-By default it is the layout's `gaps`, zoomed out with the workspace.
-
-The windows move apart as the overview opens and back as it closes, without resizing.
-The gaps at the edges of the workspace don't change.
-
-```kdl
-overview {
-    window-gap 16
-}
-```
-
 #### `backdrop-color`
 
 Set the backdrop color behind workspaces in the overview.

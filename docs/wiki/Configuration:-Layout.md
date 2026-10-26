@@ -115,24 +115,6 @@ layout {
 }
 ```
 
-### `workspace-gap`
-
-<sup>Fork</sup>
-
-Set the space between workspaces in the normal view, in logical pixels, visible while switching workspaces.
-By default it is 10% of the output height.
-
-The space is measured between the parts of the workspaces outside bars and other layer-shell exclusive zones, so a bar's zone doesn't show as a band between workspaces while switching.
-`0` makes one workspace's content meet the next one's, and negative values overlap them further: with `gaps 8`, `workspace-gap -8` leaves the same 8 pixels between the windows of two workspaces as between two columns.
-
-The space grows or shrinks smoothly to the overview's own [`workspace-gap`](./Configuration:-Miscellaneous.md#workspace-gap) as the overview opens.
-
-```kdl
-layout {
-    workspace-gap 0
-}
-```
-
 ### `center-focused-column`
 
 When to center a column when changing focus.
@@ -579,44 +561,3 @@ layout {
 ```
 
 You can also set the color per-output [in the output config](./Configuration:-Outputs.md#layout-config-overrides).
-
-### `mat`
-
-<sup>Fork</sup>
-
-Paint a backing behind the scrolling layout's windows. It fills the gaps between and around the columns, the area behind exclusive-zone bars, and the corners outside rounded windows, so in normal mode the layout reads as one clean surface.
-Past the ends of the strip and on empty workspaces, the wallpaper stays visible.
-As the overview opens, the mat fades out, showing the same gaps over the wallpaper, with no change to the layout.
-
-Floating windows get no mat.
-Writing a `mat {}` block turns it on; `off` turns it off again.
-
-```kdl
-layout {
-    gaps 8
-
-    mat {
-        // off
-        color "#000000"
-        overview "fade"
-        column-fill "full"
-        ends "hard"
-        soft-end-length 96
-        behind-bars true
-        // material "smoke"
-    }
-}
-```
-
-- `color`: the mat colour. With `material`, it is the glass tint instead, for example `"#000000c0"` for dark smoked glass.
-- `overview`: `"fade"` (the default) fades the mat out as the overview opens, `"keep"` keeps it.
-- `column-fill`: how far down the mat goes under a column whose windows don't fill the height. `"full"` (the default) covers the full height under every column. `"tiles"` stops one gap below the column's last window, so the wallpaper shows under short columns. A column whose windows fill the working area still reaches the bottom of the screen.
-- `ends`: how the mat ends at the outermost columns. `"hard"` (the default) is a sharp edge one gap past them. `"soft"` fades the mat out over the outermost columns' last `soft-end-length` logical pixels, so it is fully transparent by their outer edges.
-- `behind-bars`: whether the mat covers the areas reserved by bars and other layer-shell exclusive zones. `true` (the default) runs it the full height of the screen, so a translucent bar sits on the mat. `false` stops it at the bars' edges, so they sit on the wallpaper. Areas reserved by `struts` are covered either way.
-- `material`: draw the mat as liquid glass with this named [material](./Window-Effects.md) from `materials {}`. The glass is drawn from the blurred wallpaper, using `blur {}`'s settings unless the material sets its own. An unknown name draws a solid mat.
-
-Windows keep their `geometry-corner-radius` and `clip-to-geometry`; the mat fills around the rounded corners.
-
-> [!NOTE]
-> Layer surfaces that blur with xray (the default for layer-rule blur) blur the wallpaper, not the mat, even where the mat covers the area behind them.
-> To have a translucent bar sit on a solid mat, set `xray false` in its layer rule's `background-effect`.

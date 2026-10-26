@@ -28,10 +28,6 @@ gestures {
         // bottom-left
         // bottom-right
     }
-
-    mod-swipe {
-        // off
-    }
 }
 ```
 
@@ -117,18 +113,3 @@ gestures {
 ```
 
 You can also customize hot corners per-output [in the output config](./Configuration:-Outputs.md#hot-corners).
-
-### `mod-swipe`
-
-While holding <kbd>Mod</kbd>, three-finger touchpad swipes act on the focused window: up closes it, down maximizes it to the edges, and left/right step the column through the preset widths.
-See the [Gestures](./Gestures.md#window-swipes) page for details.
-
-Set `off` to disable this and keep the normal three-finger swipes even while <kbd>Mod</kbd> is held.
-
-```kdl
-gestures {
-    mod-swipe {
-        off
-    }
-}
-```
