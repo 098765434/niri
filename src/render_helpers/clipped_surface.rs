@@ -1,7 +1,6 @@
 use glam::{Mat3, Vec2};
 use niri_config::CornerRadius;
 use smithay::backend::renderer::buffer_y_inverted;
-use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::{Element, Id, Kind, RenderElement, UnderlyingStorage};
 use smithay::backend::renderer::gles::{
     GlesError, GlesFrame, GlesRenderer, GlesTexProgram, Uniform,
@@ -13,11 +12,12 @@ use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, T
 use super::damage::ExtraDamage;
 use super::renderer::{AsGlesFrame as _, NiriRenderer};
 use super::shaders::{mat3_uniform, Shaders};
+use super::vibrant::VibrantSurfaceRenderElement;
 use crate::backend::tty::{TtyFrame, TtyRenderer, TtyRendererError};
 
 #[derive(Debug)]
 pub struct ClippedSurfaceRenderElement<R: NiriRenderer> {
-    inner: WaylandSurfaceRenderElement<R>,
+    inner: VibrantSurfaceRenderElement<R>,
     program: GlesTexProgram,
     corner_radius: CornerRadius,
     geometry: Rectangle<f64, Logical>,
@@ -32,7 +32,7 @@ pub struct RoundedCornerDamage {
 
 impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
     pub fn new(
-        elem: WaylandSurfaceRenderElement<R>,
+        elem: VibrantSurfaceRenderElement<R>,
         scale: Scale<f64>,
         geometry: Rectangle<f64, Logical>,
         program: GlesTexProgram,
@@ -104,7 +104,7 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
     }
 
     pub fn will_clip(
-        elem: &WaylandSurfaceRenderElement<R>,
+        elem: &VibrantSurfaceRenderElement<R>,
         scale: Scale<f64>,
         geometry: Rectangle<f64, Logical>,
         corner_radius: CornerRadius,
