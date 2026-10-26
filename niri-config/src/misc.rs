@@ -123,6 +123,10 @@ pub struct Overview {
     pub zoom: f64,
     pub backdrop_color: Color,
     pub workspace_shadow: WorkspaceShadow,
+    /// Space between workspaces in the overview, on screen; `None` for the zoomed normal gap.
+    pub workspace_gap: Option<f64>,
+    /// Space between windows in the overview, on screen; `None` for the zoomed layout gaps.
+    pub window_gap: Option<f64>,
 }
 
 impl Default for Overview {
@@ -131,6 +135,8 @@ impl Default for Overview {
             zoom: 0.5,
             backdrop_color: DEFAULT_BACKDROP_COLOR,
             workspace_shadow: WorkspaceShadow::default(),
+            workspace_gap: None,
+            window_gap: None,
         }
     }
 }
@@ -143,12 +149,23 @@ pub struct OverviewPart {
     pub backdrop_color: Option<Color>,
     #[knuffel(child)]
     pub workspace_shadow: Option<WorkspaceShadowPart>,
+    #[knuffel(child, unwrap(argument))]
+    pub workspace_gap: Option<FloatOrInt<0, 65535>>,
+    #[knuffel(child, unwrap(argument))]
+    pub window_gap: Option<FloatOrInt<0, 65535>>,
 }
 
 impl MergeWith<OverviewPart> for Overview {
     fn merge_with(&mut self, part: &OverviewPart) {
         merge!((self, part), zoom, workspace_shadow);
         merge_clone!((self, part), backdrop_color);
+
+        if let Some(x) = part.workspace_gap {
+            self.workspace_gap = Some(x.0);
+        }
+        if let Some(x) = part.window_gap {
+            self.window_gap = Some(x.0);
+        }
     }
 }
 

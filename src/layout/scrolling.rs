@@ -16,7 +16,10 @@ use super::monitor::InsertPosition;
 use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
 use super::workspace::{InteractiveResize, ResolvedSize};
-use super::{ConfigureIntent, HitType, InteractiveResizeData, LayoutElement, Options, RemovedTile};
+use super::{
+    compute_overview_zoom, ConfigureIntent, HitType, InteractiveResizeData, LayoutElement, Options,
+    RemovedTile,
+};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
 use crate::layout::SizingMode;
@@ -93,6 +96,12 @@ pub struct ScrollingSpace<W: LayoutElement> {
 
     /// Clock for driving animations.
     clock: Clock,
+
+    /// Progress of the overview, for the space it adds between windows.
+    overview_progress: f64,
+
+    /// Space the overview adds between windows, on top of the gaps; see `overview_extra_gap`.
+    extra_gap: f64,
 
     /// Configurable properties of the layout.
     options: Rc<Options>,
@@ -217,6 +226,9 @@ pub struct Column<W: LayoutElement> {
     /// Clock for driving animations.
     clock: Clock,
 
+    /// Space the overview adds between tiles, on top of the gaps.
+    extra_gap: f64,
+
     /// Configurable properties of the layout.
     options: Rc<Options>,
 }
@@ -312,6 +324,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             parent_area,
             scale,
             clock,
+            overview_progress: 0.,
+            extra_gap: 0.,
             options,
         }
     }
@@ -335,6 +349,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.parent_area = parent_area;
         self.scale = scale;
         self.options = options;
+        self.set_overview_progress(self.overview_progress);
 
         // Apply always-center and such right away.
         if !self.columns.is_empty() && !self.view_offset.is_gesture() {
@@ -345,6 +360,15 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     pub fn update_shaders(&mut self) {
         for col in &mut self.columns {
             col.update_shaders();
+        }
+    }
+
+    /// Spreads the windows apart as the overview opens, without resizing them.
+    pub fn set_overview_progress(&mut self, progress: f64) {
+        self.overview_progress = progress;
+        self.extra_gap = overview_extra_gap(&self.options, progress);
+        for col in &mut self.columns {
+            col.extra_gap = self.extra_gap;
         }
     }
 
@@ -1012,6 +1036,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             self.scale,
             self.options.clone(),
         );
+        column.extra_gap = self.extra_gap;
         self.data.insert(idx, ColumnData::new(&column));
         self.columns.insert(idx, column);
 
@@ -2390,7 +2415,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     // HACK: pass a self.data iterator in manually as a workaround for the lack of method partial
     // borrowing. Note that this method's return value does not borrow the entire &Self!
     fn column_xs(&self, data: impl Iterator<Item = ColumnData>) -> impl Iterator<Item = f64> {
-        let gaps = self.options.layout.gaps;
+        let gaps = self.options.layout.gaps + self.extra_gap;
         let mut x = 0.;
 
         // Chain with a dummy value to be able to get one past all columns' X.
@@ -4080,6 +4105,7 @@ impl<W: LayoutElement> Column<W> {
             display_mode,
             tab_indicator: TabIndicator::new(options.layout.tab_indicator),
             move_animation: None,
+            extra_gap: 0.,
             view_size,
             working_area,
             parent_area,
@@ -5413,7 +5439,7 @@ impl<W: LayoutElement> Column<W> {
         // Column should somehow know when it is being centered due to being the single column on
         // the workspace or some other reason.
         let center = self.options.layout.center_focused_column == CenterFocusedColumn::Always;
-        let gaps = self.options.layout.gaps;
+        let gaps = self.options.layout.gaps + self.extra_gap;
         let tabbed = self.display_mode == ColumnDisplay::Tabbed;
 
         // Does not include extra size from the tab indicator.
@@ -5777,6 +5803,19 @@ fn resolve_preset_size(
         ),
         PresetSize::Fixed(width) => ResolvedSize::Window(f64::from(width)),
     }
+}
+
+/// The space the overview adds between windows at `progress`, in workspace pixels, so that they
+/// sit `overview { window-gap }` apart on screen once it's open. Only positions use it: window
+/// sizes come from the plain gaps, so nothing resizes.
+fn overview_extra_gap(options: &Options, progress: f64) -> f64 {
+    let Some(window_gap) = options.overview.window_gap else {
+        return 0.;
+    };
+    let zoom = compute_overview_zoom(options, Some(1.));
+    let gaps = options.layout.gaps;
+    let extra = (window_gap / zoom - gaps) * progress.max(0.);
+    extra.max(-gaps)
 }
 
 #[cfg(test)]
