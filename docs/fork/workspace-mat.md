@@ -32,8 +32,10 @@ Design choices made with the user:
   the gaps so they read like a sharp border. Opening the overview only changes the mat's
   alpha, so the "border" turns into a wallpaper gap with no layout change, no window resize and
   no reflow. This replaces the earlier approach of `gaps 0` plus a black `border`.
-- **Covers the area behind the bar.** The mat spans the full view height, including the area
-  reserved by exclusive zones, so a translucent bar sits on the mat, not on the wallpaper.
+- **Covers the area behind the bar, by default.** The mat spans the full view height, including
+  the area reserved by exclusive zones, so a translucent bar sits on the mat, not on the
+  wallpaper. `behind-bars false` stops it at the bars' edges instead (the layout's
+  `parent_area`, which excludes exclusive zones but still includes niri's struts).
 - **Floating windows get no mat.** They float above the strip and its mat.
 - **The mat's sharp corners fill around rounded windows.** Windows keep
   `geometry-corner-radius` + `clip-to-geometry`. The mat draws beneath the clip, so the
@@ -153,6 +155,7 @@ layout {
         column-fill "full"       // "full" (default) or "tiles"
         ends "hard"              // "hard" (default) or "soft"
         soft-end-length 96       // logical px; only used with ends "soft"
+        behind-bars true         // false: stop at the bars' exclusive zones
         // material "smoke"      // draw as liquid glass with this named material
     }
 

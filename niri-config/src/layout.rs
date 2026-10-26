@@ -142,6 +142,8 @@ pub struct Mat {
     pub column_fill: MatColumnFill,
     pub ends: MatEnds,
     pub soft_end_length: f64,
+    /// Whether the mat covers the bars' exclusive zones too.
+    pub behind_bars: bool,
     /// The named material to draw the mat as glass with.
     pub material: Option<String>,
 }
@@ -155,6 +157,7 @@ impl Default for Mat {
             column_fill: MatColumnFill::Full,
             ends: MatEnds::Hard,
             soft_end_length: 96.,
+            behind_bars: true,
             material: None,
         }
     }
@@ -166,7 +169,14 @@ impl MergeWith<MatPart> for Mat {
         self.off = part.off;
 
         merge!((self, part), soft_end_length);
-        merge_clone!((self, part), color, overview, column_fill, ends);
+        merge_clone!(
+            (self, part),
+            color,
+            overview,
+            column_fill,
+            ends,
+            behind_bars
+        );
         merge_clone_opt!((self, part), material);
     }
 }
@@ -185,6 +195,8 @@ pub struct MatPart {
     pub ends: Option<MatEnds>,
     #[knuffel(child, unwrap(argument))]
     pub soft_end_length: Option<FloatOrInt<0, 65535>>,
+    #[knuffel(child, unwrap(argument))]
+    pub behind_bars: Option<bool>,
     #[knuffel(child, unwrap(argument))]
     pub material: Option<String>,
 }

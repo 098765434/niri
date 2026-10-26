@@ -678,6 +678,7 @@ mod tests {
                     column-fill "tiles"
                     ends "soft"
                     soft-end-length 48
+                    behind-bars false
                     material "smoke"
                 }
             }
@@ -690,6 +691,7 @@ mod tests {
         assert_eq!(mat.column_fill, MatColumnFill::Tiles);
         assert_eq!(mat.ends, MatEnds::Soft);
         assert_eq!(mat.soft_end_length, 48.);
+        assert!(!mat.behind_bars);
         assert_eq!(mat.material.as_deref(), Some("smoke"));
 
         // an empty block turns it on with the defaults
@@ -1618,6 +1620,7 @@ mod tests {
                     column_fill: Full,
                     ends: Hard,
                     soft_end_length: 96.0,
+                    behind_bars: true,
                     material: None,
                 },
             },

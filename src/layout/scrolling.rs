@@ -431,6 +431,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             &self.options.layout.mat,
             self.options.layout.gaps,
             view_size,
+            self.parent_area,
             self.working_area.loc.y + self.working_area.size.h,
             self.scale,
         );
