@@ -1376,10 +1376,18 @@ impl<W: LayoutElement> Monitor<W> {
 
         // A set normal-view gap is between the areas outside the bars' exclusive zones, so the
         // zones don't show as a band between workspaces while switching: the workspaces overlap
-        // by them. It can be negative to overlap further.
-        let reserved = self.view_size.h - self.working_area.size.h;
+        // by them. It can be negative to overlap further. The edges are rounded to physical
+        // pixels like the mat's (`behind-bars false`), and the step between workspaces is taken
+        // from them rather than from the rounded workspace height, so no row of wallpaper shows
+        // between the areas at fractional scales.
         let normal = match self.options.layout.workspace_gap {
-            Some(gap) => (gap - reserved).max(-self.view_size.h / 2.),
+            Some(gap) => {
+                let area = self.working_area;
+                let top = round_logical_in_physical(scale, area.loc.y);
+                let bottom = round_logical_in_physical(scale, area.loc.y + area.size.h);
+                let step = bottom - top + gap;
+                (step - self.workspace_size(1.).h).max(-self.view_size.h / 2.)
+            }
             None => stock,
         };
         let overview = self

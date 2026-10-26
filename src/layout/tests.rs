@@ -4325,3 +4325,60 @@ fn overview_window_gap_spreads_without_resizing() {
     check_ops_on_layout(&mut layout, [Op::ToggleOverview, Op::CompleteAnimations]);
     assert_eq!(tiles(&layout), before);
 }
+
+#[test]
+fn workspace_gap_steps_by_rounded_working_area_at_fractional_scale() {
+    // 1800 px at scale 1.75 is 1028.57 logical px, which rounds back up to 1801 px as the
+    // workspace height. The workspaces must step by the working area's edges rounded to
+    // physical pixels, as the mat rounds them, or a row of wallpaper shows between them while
+    // switching.
+    let mut options = Options::default();
+    options.layout.workspace_gap = Some(0.);
+    let mut layout = Layout::with_options(Clock::with_time(Duration::ZERO), options);
+
+    let output = Output::new(
+        String::from("output1"),
+        PhysicalProperties {
+            size: Size::from((2880, 1800)),
+            subpixel: Subpixel::Unknown,
+            make: String::new(),
+            model: String::new(),
+            serial_number: String::new(),
+        },
+    );
+    output.change_current_state(
+        Some(Mode {
+            size: Size::from((2880, 1800)),
+            refresh: 60000,
+        }),
+        None,
+        Some(smithay::output::Scale::Fractional(1.75)),
+        None,
+    );
+    output.user_data().insert_if_missing(|| OutputName {
+        connector: String::from("output1"),
+        make: None,
+        model: None,
+        serial: None,
+    });
+    layout.add_output(output, None);
+    check_ops_on_layout(
+        &mut layout,
+        [
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::CompleteAnimations,
+        ],
+    );
+
+    let mon = layout.monitors().next().unwrap();
+    let scale = 1.75;
+    let round = |x: f64| (x * scale).round() / scale;
+    let area = mon.working_area();
+    let expected = round(area.loc.y + area.size.h) - round(area.loc.y);
+
+    let geo: Vec<_> = mon.workspaces_render_geo().take(2).collect();
+    let step = geo[1].loc.y - geo[0].loc.y;
+    assert!((step - expected).abs() < 1e-9, "{step} != {expected}");
+}
