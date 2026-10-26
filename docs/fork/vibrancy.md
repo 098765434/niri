@@ -30,10 +30,12 @@ surface's state has now. With `none` it is the plain element.
 
 - **plus_lighter** draws with `glBlendFunc(ONE, ONE)`: the surface is added to what's behind,
   clamped.
-- **plus_darker** draws as a multiply, `glBlendFunc(DST_COLOR, ONE_MINUS_SRC_ALPHA)`. Over a
-  premultiplied source this gives `D · (1 − a + s)`, which darkens what's behind while keeping
-  its colour. True plus-darker would need a texture program of its own, which would clash with
-  the rounded-corner one. Multiply needs only a blend function, so it works under any program.
+- **plus_darker** draws with `glBlendEquationSeparate(FUNC_REVERSE_SUBTRACT, FUNC_ADD)` and
+  `glBlendFunc(ONE, ONE)`: the surface is taken away from what's behind, clamped at 0. The
+  client draws how far each pixel darkens, `a · (1 − c)` for a grey `c`, so the result is
+  Apple's plus-darker, `D + c − 1`. Like plus-lighter it needs only blend state, so it works
+  under any texture program, the rounded-corner one too. The equation is put back to
+  `FUNC_ADD` after the draw.
 - Alpha is kept as it was (`ZERO, ONE`).
 - A vibrant element reports no opaque region, because smithay draws an opaque region with
   blending off and then puts its own blend function back. It also has no underlying storage,

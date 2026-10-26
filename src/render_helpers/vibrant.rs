@@ -1,8 +1,9 @@
 //! A surface's texture drawn as niri-vibrancy-v1 asks: blended with what's already drawn behind
 //! it rather than painted over it. Plus-lighter adds the surface to what's behind, clamped;
-//! plus-darker is drawn as a multiply, which darkens what's behind while keeping its colour.
-//! Both are only a blend function, so they work under any texture program (rounded clipping
-//! too), and the surface is never opaque or scanned out, which would skip the blend.
+//! plus-darker takes the surface away from what's behind, clamped at 0, the client having drawn
+//! how far each pixel darkens. Both are only blend state, so they work under any texture
+//! program (rounded clipping too), and the surface is never opaque or scanned out, which would
+//! skip the blend.
 
 use std::ops::Deref;
 
@@ -94,17 +95,28 @@ impl<R: NiriRenderer> Element for VibrantSurfaceRenderElement<R> {
     }
 }
 
+/// The blend a mode draws with: the colour equation and its source and destination factors.
+/// Alpha is always kept as it was (`ZERO, ONE` added).
+fn blend(mode: Vibrancy) -> Option<(ffi::types::GLenum, ffi::types::GLenum, ffi::types::GLenum)> {
+    match mode {
+        Vibrancy::None => None,
+        // D + S, clamped
+        Vibrancy::PlusLighter => Some((ffi::FUNC_ADD, ffi::ONE, ffi::ONE)),
+        // D - S, clamped at 0: S is how far the client darkens, a(1 - c) for a grey c
+        Vibrancy::PlusDarker => Some((ffi::FUNC_REVERSE_SUBTRACT, ffi::ONE, ffi::ONE)),
+    }
+}
+
 /// Sets the blend `mode` draws with, for the draw that follows.
 ///
 /// smithay sets `ONE, ONE_MINUS_SRC_ALPHA` once and only puts it back after drawing an opaque
 /// region, which a vibrant surface never has.
 fn set_blend(frame: &mut GlesFrame<'_, '_>, mode: Vibrancy) -> Result<(), GlesError> {
-    let (src, dst) = match mode {
-        Vibrancy::None => return Ok(()),
-        Vibrancy::PlusLighter => (ffi::ONE, ffi::ONE),
-        Vibrancy::PlusDarker => (ffi::DST_COLOR, ffi::ONE_MINUS_SRC_ALPHA),
+    let Some((equation, src, dst)) = blend(mode) else {
+        return Ok(());
     };
     frame.with_context(|gl| unsafe {
+        gl.BlendEquationSeparate(equation, ffi::FUNC_ADD);
         gl.BlendFuncSeparate(src, dst, ffi::ZERO, ffi::ONE);
     })
 }
@@ -115,6 +127,7 @@ fn reset_blend(frame: &mut GlesFrame<'_, '_>, mode: Vibrancy) -> Result<(), Gles
         return Ok(());
     }
     frame.with_context(|gl| unsafe {
+        gl.BlendEquation(ffi::FUNC_ADD);
         gl.BlendFunc(ffi::ONE, ffi::ONE_MINUS_SRC_ALPHA);
     })
 }
@@ -179,5 +192,23 @@ impl<'render> RenderElement<TtyRenderer<'render>>
             Vibrancy::None => self.inner.underlying_storage(renderer),
             Vibrancy::PlusLighter | Vibrancy::PlusDarker => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blends_per_mode() {
+        assert_eq!(blend(Vibrancy::None), None);
+        assert_eq!(
+            blend(Vibrancy::PlusLighter),
+            Some((ffi::FUNC_ADD, ffi::ONE, ffi::ONE))
+        );
+        assert_eq!(
+            blend(Vibrancy::PlusDarker),
+            Some((ffi::FUNC_REVERSE_SUBTRACT, ffi::ONE, ffi::ONE))
+        );
     }
 }

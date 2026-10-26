@@ -22,7 +22,7 @@ pub enum Vibrancy {
     None,
     /// Added to what's behind, clamped.
     PlusLighter,
-    /// Its inverse taken from what's behind, clamped.
+    /// Taken away from what's behind, clamped at 0.
     PlusDarker,
 }
 

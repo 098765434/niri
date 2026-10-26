@@ -32,6 +32,11 @@
     It is meant for a subsurface holding only greyscale content (labels,
     glyphs, fills) above a surface whose background is a translucent
     material. Coloured content blends unpredictably.
+
+    With plus_darker the surface holds the amount to darken by, not the
+    colour to darken with: a grey c at alpha a that should darken as
+    Apple's plus-darker does (D + c - 1) is drawn as white, 1 - c, at
+    alpha a, so the compositor takes a(1 - c) away from what is behind.
   </description>
 
   <interface name="niri_vibrancy_manager_v1" version="1">
@@ -72,7 +77,7 @@
       <entry name="plus_lighter" value="1"
              summary="added to what is behind, clamped: light content brightens it"/>
       <entry name="plus_darker" value="2"
-             summary="dark content darkens what is behind, keeping its colour (a multiply)"/>
+             summary="subtracted from what is behind, clamped at 0: the content is how far each pixel darkens"/>
     </enum>
 
     <request name="destroy" type="destructor">
