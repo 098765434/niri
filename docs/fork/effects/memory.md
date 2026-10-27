@@ -88,6 +88,11 @@ Count each DRM client once (the `id` above): a process holds more than one fd on
 and summing per fd doubles the figure. Take it at idle, after a screenshot, and after a window
 swipe. The DRM scanout swapchain (about three full-output buffers) is the floor.
 
+Measured live on 2026-10-27 with all of the above in: 353 MB of VRAM and 12 MB of GTT at
+idle on one 2880×1800 output (there was no per-process reading before the changes; the
+research estimated 150 MB of xray buffers steady and 450 MB after a screenshot). After a
+screenshot and after a window swipe are still to be read.
+
 ## Config
 
 The global `blur {}` should carry the pair most materials use, so that pair draws from the base
