@@ -758,7 +758,11 @@ impl GammaControlHandler for State {
 
     fn set_gamma(&mut self, output: &Output, ramp: Option<Vec<u16>>) -> Option<()> {
         match self.backend.tty().set_gamma(output, ramp) {
-            Ok(()) => Some(()),
+            Ok(()) => {
+                // in HDR mode the ramp is drawn, not loaded into the CRTC
+                self.niri.queue_redraw(output);
+                Some(())
+            }
             Err(err) => {
                 warn!("error setting gamma for output {}: {err:?}", output.name());
                 None

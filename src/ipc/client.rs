@@ -593,6 +593,10 @@ fn print_output(output: Output) -> anyhow::Result<()> {
         is_custom_mode,
         vrr_supported,
         vrr_enabled,
+        hdr_supported,
+        hdr_enabled,
+        sdr_brightness,
+        peak_luminance,
         logical,
     } = output;
 
@@ -643,6 +647,18 @@ fn print_output(output: Output) -> anyhow::Result<()> {
         println!("  Variable refresh rate: supported, {enabled}");
     } else {
         println!("  Variable refresh rate: not supported");
+    }
+
+    if hdr_supported {
+        let enabled = if hdr_enabled { "enabled" } else { "disabled" };
+        let peak = peak_luminance.map_or(String::new(), |nits| format!(", up to {nits:.0} nits"));
+        let sdr = match sdr_brightness {
+            Some(nits) if hdr_enabled => format!(", SDR white at {nits:.0} nits"),
+            _ => String::new(),
+        };
+        println!("  HDR: supported{peak}, {enabled}{sdr}");
+    } else {
+        println!("  HDR: not supported");
     }
 
     if let Some((width, height)) = physical_size {

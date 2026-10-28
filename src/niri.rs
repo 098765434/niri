@@ -1936,6 +1936,10 @@ impl State {
                     None
                 }
             }
+            niri_ipc::OutputAction::Hdr { hdr } => config.hdr = hdr,
+            niri_ipc::OutputAction::SdrBrightness { nits } => {
+                config.sdr_brightness = Some(FloatOrInt(nits.clamp(1., 10000.)));
+            }
         });
 
         self.reload_output_config();

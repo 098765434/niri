@@ -786,7 +786,10 @@ mod tests {
         // the blur is `blur {}`'s unless the material sets its own
         assert_eq!((glass.blur_passes, glass.blur_offset), (None, None));
         let frosted = parsed.materials.0[1].params();
-        assert_eq!((frosted.blur_passes, frosted.blur_offset), (Some(2), Some(1.5)));
+        assert_eq!(
+            (frosted.blur_passes, frosted.blur_offset),
+            (Some(2), Some(1.5))
+        );
         // the tone keeps the whole brightness range unless set
         assert_eq!((glass.tone, frosted.tone), (1., 0.6));
         // the glow follows the rim unless set
@@ -1350,6 +1353,8 @@ mod tests {
                             },
                         ),
                         focus_at_startup: true,
+                        hdr: false,
+                        sdr_brightness: None,
                         background_color: Some(
                             Color {
                                 r: 0.09803922,
@@ -1391,6 +1396,8 @@ mod tests {
                         modeline: None,
                         variable_refresh_rate: None,
                         focus_at_startup: false,
+                        hdr: false,
+                        sdr_brightness: None,
                         background_color: None,
                         backdrop_color: None,
                         hot_corners: None,
@@ -1420,6 +1427,8 @@ mod tests {
                         ),
                         variable_refresh_rate: None,
                         focus_at_startup: false,
+                        hdr: false,
+                        sdr_brightness: None,
                         background_color: None,
                         backdrop_color: None,
                         hot_corners: None,
