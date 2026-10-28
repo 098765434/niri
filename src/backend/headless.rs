@@ -108,6 +108,10 @@ impl Headless {
                 is_custom_mode: true,
                 vrr_supported: false,
                 vrr_enabled: false,
+                hdr_supported: false,
+                hdr_enabled: false,
+                sdr_brightness: None,
+                peak_luminance: None,
                 logical: Some(logical_output(&output)),
             },
         );

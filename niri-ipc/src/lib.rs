@@ -1103,6 +1103,28 @@ pub enum OutputAction {
         #[cfg_attr(feature = "clap", command(flatten))]
         vrr: VrrToSet,
     },
+    /// Turn HDR on or off.
+    ///
+    /// The output must support HDR10. Changing it reconnects the output.
+    Hdr {
+        /// Whether to enable HDR.
+        #[cfg_attr(
+            feature = "clap",
+            arg(
+                value_name = "ON|OFF",
+                action = clap::ArgAction::Set,
+                value_parser = clap::builder::BoolishValueParser::new(),
+                hide_possible_values = true,
+            ),
+        )]
+        hdr: bool,
+    },
+    /// Set how bright SDR content is in HDR mode.
+    SdrBrightness {
+        /// Brightness of SDR white in nits.
+        #[cfg_attr(feature = "clap", arg())]
+        nits: f64,
+    },
 }
 
 /// Output mode to set.
@@ -1230,6 +1252,19 @@ pub struct Output {
     pub vrr_supported: bool,
     /// Whether variable refresh rate is enabled on the output.
     pub vrr_enabled: bool,
+    /// Whether the output can show HDR: its EDID says it decodes PQ (HDR10), and niri can drive
+    /// it.
+    #[serde(default)]
+    pub hdr_supported: bool,
+    /// Whether the output is in HDR mode.
+    #[serde(default)]
+    pub hdr_enabled: bool,
+    /// How bright SDR content (and SDR white) is in HDR mode, in nits.
+    #[serde(default)]
+    pub sdr_brightness: Option<f64>,
+    /// The most the output says it shows, in nits, from its HDR static metadata.
+    #[serde(default)]
+    pub peak_luminance: Option<f64>,
     /// Logical output information.
     ///
     /// `None` if the output is not mapped to any logical output (for example, if it is disabled).

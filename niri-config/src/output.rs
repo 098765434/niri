@@ -67,6 +67,12 @@ pub struct Output {
     pub variable_refresh_rate: Option<Vrr>,
     #[knuffel(child)]
     pub focus_at_startup: bool,
+    /// Drive the output in HDR10 (BT.2020, PQ), when it supports it.
+    #[knuffel(child)]
+    pub hdr: bool,
+    /// How bright SDR white is in HDR mode, in nits.
+    #[knuffel(child, unwrap(argument))]
+    pub sdr_brightness: Option<FloatOrInt<1, 10000>>,
     // Deprecated; use layout.background_color.
     #[knuffel(child)]
     pub background_color: Option<Color>,
@@ -90,6 +96,11 @@ impl Output {
     pub fn is_vrr_always_off(&self) -> bool {
         self.variable_refresh_rate.is_none()
     }
+
+    /// SDR white in HDR mode, in nits: 203, the reference white of BT.2408, unless set.
+    pub fn sdr_brightness(&self) -> f64 {
+        self.sdr_brightness.map_or(203., |nits| nits.0)
+    }
 }
 
 impl Default for Output {
@@ -97,6 +108,8 @@ impl Default for Output {
         Self {
             off: false,
             focus_at_startup: false,
+            hdr: false,
+            sdr_brightness: None,
             name: String::new(),
             scale: None,
             transform: Transform::Normal,

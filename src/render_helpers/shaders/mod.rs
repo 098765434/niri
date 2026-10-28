@@ -18,6 +18,7 @@ pub struct Shaders {
     pub glass: Option<GlesTexProgram>,
     pub resize: Option<ShaderProgram>,
     pub gradient_fade: Option<GlesTexProgram>,
+    pub hdr_encode: Option<GlesTexProgram>,
     pub blur: Option<BlurProgram>,
     pub custom_resize: RefCell<Option<ShaderProgram>>,
     pub custom_close: RefCell<Option<ShaderProgram>>,
@@ -171,6 +172,20 @@ impl Shaders {
             })
             .ok();
 
+        let hdr_encode = renderer
+            .compile_custom_texture_shader(
+                include_str!("hdr_encode.frag"),
+                &[
+                    UniformName::new("sdr_white", UniformType::_1f),
+                    UniformName::new("ramp_gain", UniformType::_3f),
+                    UniformName::new("ramp_exponent", UniformType::_3f),
+                ],
+            )
+            .map_err(|err| {
+                warn!("error compiling HDR encode shader: {err:?}");
+            })
+            .ok();
+
         let blur = BlurProgram::compile(renderer)
             .map_err(|err| {
                 warn!("error compiling blur shaders: {err:?}");
@@ -185,6 +200,7 @@ impl Shaders {
             glass,
             resize,
             gradient_fade,
+            hdr_encode,
             blur,
             custom_resize: RefCell::new(None),
             custom_close: RefCell::new(None),
