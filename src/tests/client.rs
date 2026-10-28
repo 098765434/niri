@@ -10,6 +10,7 @@ use std::time::Duration;
 use calloop::EventLoop;
 use calloop_wayland_source::WaylandSource;
 use single_pixel_buffer::v1::client::wp_single_pixel_buffer_manager_v1::WpSinglePixelBufferManagerV1;
+use smithay::reexports::wayland_protocols::wp::color_management::v1::client::wp_color_manager_v1::WpColorManagerV1;
 use smithay::reexports::wayland_protocols::wp::single_pixel_buffer;
 use smithay::reexports::wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use smithay::reexports::wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
@@ -55,6 +56,7 @@ pub struct State {
     pub layer_shell: Option<ZwlrLayerShellV1>,
     pub spbm: Option<WpSinglePixelBufferManagerV1>,
     pub viewporter: Option<WpViewporter>,
+    pub color_manager: Option<WpColorManagerV1>,
 
     pub windows: Vec<Window>,
     pub layers: Vec<LayerSurface>,
@@ -181,6 +183,7 @@ impl Client {
             layer_shell: None,
             spbm: None,
             viewporter: None,
+            color_manager: None,
             windows: Vec::new(),
             layers: Vec::new(),
         };
@@ -518,6 +521,9 @@ impl Dispatch<WlRegistry, ()> for State {
                 } else if interface == WpViewporter::interface().name {
                     let version = min(version, WpViewporter::interface().version);
                     state.viewporter = Some(registry.bind(name, version, qh, ()));
+                } else if interface == WpColorManagerV1::interface().name {
+                    let version = min(version, WpColorManagerV1::interface().version);
+                    state.color_manager = Some(registry.bind(name, version, qh, ()));
                 } else if interface == WlOutput::interface().name {
                     let version = min(version, WlOutput::interface().version);
                     let output = registry.bind(name, version, qh, ());

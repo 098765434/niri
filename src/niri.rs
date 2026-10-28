@@ -770,6 +770,9 @@ impl State {
 
         self.niri.redraw_queued_outputs(&mut self.backend);
 
+        // replies that end by destroying the object they're on go out after dispatch
+        self.niri.color_management_state.send_pending_information();
+
         {
             let _span = tracy_client::span!("flush_clients");
             self.niri.display_handle.flush_clients().unwrap();

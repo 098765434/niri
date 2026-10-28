@@ -391,6 +391,9 @@ pub struct ColorManagementState {
     srgb: Arc<ImageDescription>,
     output_objects: Vec<(WpColorManagementOutputV1, String)>,
     feedbacks: Vec<WpColorManagementSurfaceFeedbackV1>,
+    /// Information asked for, sent after the request that made it: its last event, `done`,
+    /// destroys it, and destroyed inside that request the backend writes into freed memory.
+    pending_information: Vec<(WpImageDescriptionInfoV1, Arc<ImageDescription>)>,
 }
 
 pub struct OutputObjectData(String);
@@ -436,6 +439,17 @@ impl ColorManagementState {
             srgb: Arc::new(ImageDescription::srgb()),
             output_objects: Vec::new(),
             feedbacks: Vec::new(),
+            pending_information: Vec::new(),
+        }
+    }
+
+    /// Sends the information asked for since the last call; niri calls it after dispatching
+    /// clients' requests, before flushing them.
+    pub fn send_pending_information(&mut self) {
+        for (info, description) in self.pending_information.drain(..) {
+            if info.is_alive() {
+                send_information(&info, &description);
+            }
         }
     }
 
@@ -598,6 +612,7 @@ where
         + Dispatch<WpColorManagementSurfaceV1, SurfaceObjectData>
         + Dispatch<WpColorManagementSurfaceFeedbackV1, FeedbackData>
         + Dispatch<WpImageDescriptionCreatorParamsV1, ParamsData>
+        + Dispatch<WpImageDescriptionCreatorIccV1, ()>
         + Dispatch<WpImageDescriptionV1, DescriptionData>
         + ColorManagementHandler
         + 'static,
@@ -634,6 +649,9 @@ where
                         .as_ref()
                         .is_some_and(|object| object.is_alive())
                 });
+                // a new object is always made, even one met with an error: the backend tears
+                // down what a request created, and one never made crashes it
+                let object = data_init.init(id, SurfaceObjectData(Mutex::new(surface.downgrade())));
                 if attached {
                     manager.post_error(
                         wp_color_manager_v1::Error::SurfaceExists,
@@ -641,7 +659,6 @@ where
                     );
                     return;
                 }
-                let object = data_init.init(id, SurfaceObjectData(Mutex::new(surface.downgrade())));
                 with_states(&surface, |states| {
                     if let Some(data) = states.data_map.get::<SurfaceColorData>() {
                         *data.0.lock().unwrap() = Some(object);
@@ -653,7 +670,7 @@ where
                 state.color_management_state().feedbacks.push(object);
             }
             Request::CreateIccCreator { obj } => {
-                let _ = obj;
+                data_init.init(obj, ());
                 manager.post_error(
                     wp_color_manager_v1::Error::UnsupportedFeature,
                     "ICC profiles aren't supported",
@@ -808,6 +825,7 @@ where
         };
         let _ = parametric;
         if data.0.lock().unwrap().upgrade().is_err() {
+            init_description(data_init, id, None);
             object.post_error(
                 wp_color_management_surface_feedback_v1::Error::Inert,
                 "the wl_surface is gone",
@@ -958,6 +976,7 @@ where
             }
             Request::Create { image_description } => {
                 let (Some(transfer), Some(primaries)) = (params.transfer, params.primaries) else {
+                    init_description(data_init, image_description, None);
                     object.post_error(
                         Error::IncompleteSet,
                         "a transfer function and primaries are needed",
@@ -966,6 +985,7 @@ where
                 };
                 if let (Some(cll), Some(fall)) = (params.max_cll, params.max_fall) {
                     if fall > cll {
+                        init_description(data_init, image_description, None);
                         object.post_error(Error::InvalidLuminance, "max_fall exceeds max_cll");
                         return;
                     }
@@ -1001,10 +1021,11 @@ impl<D> Dispatch<WpImageDescriptionV1, DescriptionData, D> for ColorManagementSt
 where
     D: Dispatch<WpImageDescriptionV1, DescriptionData>
         + Dispatch<WpImageDescriptionInfoV1, ()>
+        + ColorManagementHandler
         + 'static,
 {
     fn request(
-        _state: &mut D,
+        state: &mut D,
         _client: &Client,
         object: &WpImageDescriptionV1,
         request: wp_image_description_v1::Request,
@@ -1015,6 +1036,7 @@ where
         let wp_image_description_v1::Request::GetInformation { information } = request else {
             return;
         };
+        let info = data_init.init(information, ());
         let Some(description) = &data.0 else {
             object.post_error(
                 wp_image_description_v1::Error::NotReady,
@@ -1029,8 +1051,10 @@ where
             );
             return;
         }
-        let info = data_init.init(information, ());
-        send_information(&info, description);
+        state
+            .color_management_state()
+            .pending_information
+            .push((info, description.clone()));
     }
 }
 
