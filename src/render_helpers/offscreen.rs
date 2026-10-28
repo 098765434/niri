@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 
 use anyhow::Context as _;
-use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::damage::OutputDamageTracker;
 use smithay::backend::renderer::element::utils::{Relocate, RelocateRenderElement};
 use smithay::backend::renderer::element::{
@@ -125,6 +124,10 @@ impl OffscreenBuffer {
                 reason = "renderer id changed";
 
                 *inner = None;
+            } else if texture.format() != Some(super::color::buffer_format(renderer)) {
+                reason = "HDR mode changed";
+
+                *inner = None;
             }
         } else {
             reason = "first render";
@@ -137,8 +140,9 @@ impl OffscreenBuffer {
             let span = tracy_client::span!("creating offscreen buffer");
             span.emit_text(reason);
 
+            let format = super::color::buffer_format(renderer);
             let texture: GlesTexture = renderer
-                .create_buffer(Fourcc::Abgr8888, src_size)
+                .create_buffer(format, src_size)
                 .context("error creating texture")?;
 
             let buffer_size = src_size.to_logical(1, Transform::Normal).to_physical(1);

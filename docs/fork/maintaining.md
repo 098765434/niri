@@ -104,6 +104,7 @@ re-pin the consuming config (`nix flake update niri-fork`).
 | Gaps | maybe: plain config, stock behaviour unchanged when unset |
 | Workspace mat | maybe: plain config, no protocol |
 | Desktop layer | maybe: plain config plus one IPC event |
+| HDR | maybe in parts: the colour-management protocol and conversion are generic; the composition keeps the fork's gamma-2.2 blending |
 
 ## Commit log
 
@@ -146,3 +147,5 @@ Every commit in `v26.04..ocbk`, oldest first, by feature. Later docs-only commit
 | `871b5ee5` | [desktop layer](layout/desktop-layer.md) | `desktop` layer rule and the `DesktopObscured` event |
 | `cff5af59` and the six after it | housekeeping | docs reorganization: `docs/fork/` feature folders, wiki pages reset to `v26.04`, `FORK.md` stub |
 | `0b2ab4e5` | [effects memory](effects/memory.md) | base chain and background only when used, idle eviction, capture targets released, shape captures dropped, swipe offscreen cleared |
+| `b322b674` | [HDR](display/hdr.md) | HDR10 output: KMS properties, 10-bit scanout, half-float composition encoded to PQ |
+| `cf559b95` | [HDR](display/hdr.md) | `wp-color-management-v1`, HDR surfaces converted and tone-mapped per target |

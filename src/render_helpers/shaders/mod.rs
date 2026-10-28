@@ -14,6 +14,10 @@ pub struct Shaders {
     pub border: Option<ShaderProgram>,
     pub shadow: Option<ShaderProgram>,
     pub clipped_surface: Option<GlesTexProgram>,
+    /// `clipped_surface` converting a surface's own colour description.
+    pub clipped_surface_cm: Option<GlesTexProgram>,
+    /// A surface converted from its own colour description, unclipped.
+    pub cm_surface: Option<GlesTexProgram>,
     pub postprocess_and_clip: Option<GlesTexProgram>,
     pub glass: Option<GlesTexProgram>,
     pub resize: Option<ShaderProgram>,
@@ -103,6 +107,52 @@ impl Shaders {
             )
             .map_err(|err| {
                 warn!("error compiling clipped surface shader: {err:?}");
+            })
+            .ok();
+
+        let cm_uniforms = [
+            UniformName::new("cm_tf", UniformType::_1f),
+            UniformName::new("cm_power", UniformType::_1f),
+            UniformName::new("cm_matrix", UniformType::Matrix3x3),
+            UniformName::new("cm_scale", UniformType::_1f),
+            UniformName::new("cm_content_peak", UniformType::_1f),
+            UniformName::new("cm_target_peak", UniformType::_1f),
+        ];
+
+        let clipped_surface_cm = renderer
+            .compile_custom_texture_shader(
+                concat!(
+                    include_str!("clipped_surface.frag"),
+                    include_str!("rounding_alpha.frag"),
+                    include_str!("color_convert.frag"),
+                    "\nvec4 postprocess(vec4 color) { return cm(color); }",
+                ),
+                &[
+                    &[
+                        UniformName::new("niri_scale", UniformType::_1f),
+                        UniformName::new("geo_size", UniformType::_2f),
+                        UniformName::new("corner_radius", UniformType::_4f),
+                        UniformName::new("input_to_geo", UniformType::Matrix3x3),
+                    ][..],
+                    &cm_uniforms[..],
+                ]
+                .concat(),
+            )
+            .map_err(|err| {
+                warn!("error compiling colour-converting clipped surface shader: {err:?}");
+            })
+            .ok();
+
+        let cm_surface = renderer
+            .compile_custom_texture_shader(
+                concat!(
+                    include_str!("cm_surface.frag"),
+                    include_str!("color_convert.frag")
+                ),
+                &cm_uniforms,
+            )
+            .map_err(|err| {
+                warn!("error compiling colour-converting surface shader: {err:?}");
             })
             .ok();
 
@@ -196,6 +246,8 @@ impl Shaders {
             border,
             shadow,
             clipped_surface,
+            clipped_surface_cm,
+            cm_surface,
             postprocess_and_clip,
             glass,
             resize,
