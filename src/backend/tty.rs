@@ -68,6 +68,7 @@ use super::{IpcOutputMap, RenderResult};
 use crate::backend::OutputId;
 use crate::frame_clock::FrameClock;
 use crate::niri::{Niri, RedrawState, State};
+use crate::render_helpers::color::{self, ColorTarget};
 use crate::render_helpers::debug::draw_damage;
 use crate::render_helpers::hdr::{HdrBuffer, HdrParams};
 use crate::render_helpers::renderer::AsGlesRenderer;
@@ -1994,6 +1995,17 @@ impl Tty {
             }
         };
 
+        // An output in HDR mode draws for an HDR target, from its elements (and the windows
+        // drawn offscreen among them) to its composition: surfaces with HDR content keep their
+        // highlights, up to what the panel shows.
+        let hdr_target = surface.hdr.as_ref().map(|hdr| {
+            let peak = surface.hdr_caps.map_or(1000., |caps| caps.max);
+            ColorTarget::hdr(hdr.params().sdr_white, peak)
+        });
+        if let Some(target) = hdr_target {
+            color::set_target(renderer.as_gles_renderer(), target);
+        }
+
         // Render the elements.
         let ctx = RenderCtx {
             renderer: &mut renderer,
@@ -2055,7 +2067,9 @@ impl Tty {
                 .current_transform()
                 .transform_size(output.current_mode().map(|m| m.size).unwrap_or_default());
             let scale = output.current_scale().fractional_scale().into();
-            match hdr.render(&mut renderer, size, scale, &elements) {
+            let res = hdr.render(&mut renderer, size, scale, &elements);
+            color::set_target(renderer.as_gles_renderer(), ColorTarget::SDR);
+            match res {
                 Ok((element, states)) => drm_compositor
                     .render_frame::<_, _>(&mut renderer, &[element], [0.; 4], FrameFlags::empty())
                     .map(|res| (settle_frame(res, wait).0, states))
@@ -2243,6 +2257,7 @@ impl Tty {
         let _span = tracy_client::span!("Tty::refresh_ipc_outputs");
 
         let mut ipc_outputs = HashMap::new();
+        let mut hdr_outputs = Vec::new();
         let disable_monitor_names = self.config.borrow().debug.disable_monitor_names;
 
         for (node, device) in &self.devices {
@@ -2334,6 +2349,15 @@ impl Tty {
                     OutputId::next()
                 });
 
+                if let (Some(hdr), Some(caps)) = (hdr, caps) {
+                    hdr_outputs.push((
+                        connector_name.clone(),
+                        f64::from(hdr.params().sdr_white),
+                        f64::from(caps.min),
+                        f64::from(caps.max),
+                    ));
+                }
+
                 let ipc_output = niri_ipc::Output {
                     name: connector_name,
                     make: output_name.make.unwrap_or_else(|| "Unknown".into()),
@@ -2359,6 +2383,9 @@ impl Tty {
         let mut guard = self.ipc_outputs.lock().unwrap();
         *guard = ipc_outputs;
         niri.ipc_outputs_changed = true;
+
+        // clients that manage their colour learn which outputs show HDR
+        niri.color_management_state.set_hdr_outputs(hdr_outputs);
     }
 
     pub fn ipc_outputs(&self) -> Arc<Mutex<IpcOutputMap>> {

@@ -171,3 +171,12 @@ impl BlurShapesHandler for State {
 }
 delegate_blur_shapes!(State);
 delegate_vibrancy!(State);
+
+impl crate::protocols::color_management::ColorManagementHandler for State {
+    fn color_management_state(
+        &mut self,
+    ) -> &mut crate::protocols::color_management::ColorManagementState {
+        &mut self.niri.color_management_state
+    }
+}
+crate::delegate_color_management!(State);

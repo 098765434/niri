@@ -11,7 +11,7 @@ use super::renderer::NiriRenderer;
 use super::texture::TextureBuffer;
 use super::vibrant::VibrantSurfaceRenderElement;
 use super::BakedBuffer;
-use crate::protocols::vibrancy;
+use crate::protocols::{color_management, vibrancy};
 
 /// Renders elements from a surface tree as textures into `storage`.
 pub fn render_snapshot_from_surface_tree(
@@ -137,6 +137,7 @@ pub fn push_elements_from_surface_tree<R>(
                         Ok(Some(elem)) => push(VibrantSurfaceRenderElement::new(
                             elem,
                             vibrancy::vibrancy(states),
+                            color_management::color_params(states),
                         )),
                         Ok(None) => {} // surface is not mapped
                         Err(err) => {

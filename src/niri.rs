@@ -144,6 +144,7 @@ use crate::layout::{
 };
 use crate::niri_render_elements;
 use crate::protocols::blur_shapes::BlurShapesManagerState;
+use crate::protocols::color_management::ColorManagementState;
 use crate::protocols::ext_workspace::{self, ExtWorkspaceManagerState};
 use crate::protocols::foreign_toplevel::{self, ForeignToplevelManagerState};
 use crate::protocols::gamma_control::GammaControlManagerState;
@@ -315,6 +316,7 @@ pub struct Niri {
     pub mutter_x11_interop_state: MutterX11InteropManagerState,
     pub blur_shapes_state: BlurShapesManagerState,
     pub vibrancy_state: VibrancyManagerState,
+    pub color_management_state: ColorManagementState,
 
     // This will not work as is outside of tests, so it is gated with #[cfg(test)] for now. In
     // particular, shaders will need to learn about the single pixel buffer. Also, it must be
@@ -2391,6 +2393,7 @@ impl Niri {
             MutterX11InteropManagerState::new::<State, _>(&display_handle, move |_| true);
         let mut blur_shapes_state = BlurShapesManagerState::new::<State>(&display_handle);
         let vibrancy_state = VibrancyManagerState::new::<State>(&display_handle);
+        let color_management_state = ColorManagementState::new::<State>(&display_handle);
         {
             let materials = &config.borrow().materials;
             crate::render_helpers::background_effect::set_materials(materials);
@@ -2592,6 +2595,7 @@ impl Niri {
             mutter_x11_interop_state,
             blur_shapes_state,
             vibrancy_state,
+            color_management_state,
             #[cfg(test)]
             single_pixel_buffer_state,
 

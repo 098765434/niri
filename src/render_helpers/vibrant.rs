@@ -4,6 +4,10 @@
 //! how far each pixel darkens. Both are only blend state, so they work under any texture
 //! program (rounded clipping too), and the surface is never opaque or scanned out, which would
 //! skip the blend.
+//!
+//! It also brings a surface with its own colour description (wp-color-management-v1: HDR video,
+//! a game's scRGB) into the composition, through `cm_surface`; a clipped surface does that in
+//! its own program instead (`clipped_surface_cm`), so the two never stack.
 
 use std::ops::Deref;
 
@@ -14,24 +18,64 @@ use smithay::backend::renderer::utils::{CommitCounter, DamageSet, OpaqueRegions}
 use smithay::utils::user_data::UserDataMap;
 use smithay::utils::{Buffer, Physical, Point, Rectangle, Scale, Transform};
 
+use super::color;
 use super::renderer::{AsGlesFrame as _, NiriRenderer};
+use super::shaders::Shaders;
 use crate::backend::tty::{TtyFrame, TtyRenderer, TtyRendererError};
+use crate::protocols::color_management::ColorParams;
 use crate::protocols::vibrancy::Vibrancy;
 
 #[derive(Debug)]
 pub struct VibrantSurfaceRenderElement<R: NiriRenderer> {
     inner: WaylandSurfaceRenderElement<R>,
     mode: Vibrancy,
+    /// How to convert it, when it has a colour description of its own.
+    color: Option<ColorParams>,
 }
 
 impl<R: NiriRenderer> VibrantSurfaceRenderElement<R> {
-    pub fn new(inner: WaylandSurfaceRenderElement<R>, mode: Vibrancy) -> Self {
-        Self { inner, mode }
+    pub fn new(
+        inner: WaylandSurfaceRenderElement<R>,
+        mode: Vibrancy,
+        color: Option<ColorParams>,
+    ) -> Self {
+        Self { inner, mode, color }
     }
 
     pub fn mode(&self) -> Vibrancy {
         self.mode
     }
+
+    pub fn color(&self) -> Option<ColorParams> {
+        self.color
+    }
+
+    /// Whether it may go straight to a plane: not when it blends, nor when it's converted.
+    fn scanout(&self) -> bool {
+        self.mode == Vibrancy::None && self.color.is_none()
+    }
+}
+
+/// Draws `inner`, converted from its colour description unless `convert` is off (a clipped
+/// surface converts in its own program).
+fn draw_converted(
+    frame: &mut GlesFrame<'_, '_>,
+    color: Option<ColorParams>,
+    convert: bool,
+    draw: impl FnOnce(&mut GlesFrame<'_, '_>) -> Result<(), GlesError>,
+) -> Result<(), GlesError> {
+    let program = match color {
+        Some(_) if convert => Shaders::get_from_frame(frame).cm_surface.clone(),
+        _ => None,
+    };
+    let (Some(params), Some(program)) = (color, program) else {
+        return draw(frame);
+    };
+    let target = color::target(frame);
+    frame.override_default_tex_program(program, color::uniforms(&params, target));
+    let drawn = draw(frame);
+    frame.clear_tex_program_override();
+    drawn
 }
 
 impl<R: NiriRenderer> Deref for VibrantSurfaceRenderElement<R> {
@@ -142,26 +186,82 @@ impl RenderElement<GlesRenderer> for VibrantSurfaceRenderElement<GlesRenderer> {
         opaque_regions: &[Rectangle<i32, Physical>],
         cache: Option<&UserDataMap>,
     ) -> Result<(), GlesError> {
-        set_blend(frame, self.mode)?;
-        let drawn = RenderElement::<GlesRenderer>::draw(
-            &self.inner,
-            frame,
-            src,
-            dst,
-            damage,
-            opaque_regions,
-            cache,
-        );
-        reset_blend(frame, self.mode)?;
-        drawn
+        self.draw_gles(frame, src, dst, damage, opaque_regions, cache, true)
     }
 
     fn underlying_storage(&self, renderer: &mut GlesRenderer) -> Option<UnderlyingStorage<'_>> {
-        // scanned out, the surface would skip the blend
-        match self.mode {
-            Vibrancy::None => self.inner.underlying_storage(renderer),
-            Vibrancy::PlusLighter | Vibrancy::PlusDarker => None,
+        // scanned out, the surface would skip the blend and the conversion
+        if self.scanout() {
+            self.inner.underlying_storage(renderer)
+        } else {
+            None
         }
+    }
+}
+
+impl VibrantSurfaceRenderElement<GlesRenderer> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_gles(
+        &self,
+        frame: &mut GlesFrame<'_, '_>,
+        src: Rectangle<f64, Buffer>,
+        dst: Rectangle<i32, Physical>,
+        damage: &[Rectangle<i32, Physical>],
+        opaque_regions: &[Rectangle<i32, Physical>],
+        cache: Option<&UserDataMap>,
+        convert: bool,
+    ) -> Result<(), GlesError> {
+        set_blend(frame, self.mode)?;
+        let drawn = draw_converted(frame, self.color, convert, |frame| {
+            RenderElement::<GlesRenderer>::draw(
+                &self.inner,
+                frame,
+                src,
+                dst,
+                damage,
+                opaque_regions,
+                cache,
+            )
+        });
+        reset_blend(frame, self.mode)?;
+        drawn
+    }
+}
+
+impl<'render> VibrantSurfaceRenderElement<TtyRenderer<'render>> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_tty(
+        &self,
+        frame: &mut TtyFrame<'render, '_, '_>,
+        src: Rectangle<f64, Buffer>,
+        dst: Rectangle<i32, Physical>,
+        damage: &[Rectangle<i32, Physical>],
+        opaque_regions: &[Rectangle<i32, Physical>],
+        cache: Option<&UserDataMap>,
+        convert: bool,
+    ) -> Result<(), TtyRendererError<'render>> {
+        set_blend(frame.as_gles_frame(), self.mode)?;
+        let program = match self.color {
+            Some(_) if convert => Shaders::get_from_frame(frame.as_gles_frame())
+                .cm_surface
+                .clone(),
+            _ => None,
+        };
+        let overridden = if let (Some(params), Some(program)) = (self.color, program) {
+            let gles = frame.as_gles_frame();
+            let target = color::target(gles);
+            gles.override_default_tex_program(program, color::uniforms(&params, target));
+            true
+        } else {
+            false
+        };
+        let drawn =
+            RenderElement::draw(&self.inner, frame, src, dst, damage, opaque_regions, cache);
+        if overridden {
+            frame.as_gles_frame().clear_tex_program_override();
+        }
+        reset_blend(frame.as_gles_frame(), self.mode)?;
+        drawn
     }
 }
 
@@ -177,20 +277,17 @@ impl<'render> RenderElement<TtyRenderer<'render>>
         opaque_regions: &[Rectangle<i32, Physical>],
         cache: Option<&UserDataMap>,
     ) -> Result<(), TtyRendererError<'render>> {
-        set_blend(frame.as_gles_frame(), self.mode)?;
-        let drawn =
-            RenderElement::draw(&self.inner, frame, src, dst, damage, opaque_regions, cache);
-        reset_blend(frame.as_gles_frame(), self.mode)?;
-        drawn
+        self.draw_tty(frame, src, dst, damage, opaque_regions, cache, true)
     }
 
     fn underlying_storage(
         &self,
         renderer: &mut TtyRenderer<'render>,
     ) -> Option<UnderlyingStorage<'_>> {
-        match self.mode {
-            Vibrancy::None => self.inner.underlying_storage(renderer),
-            Vibrancy::PlusLighter | Vibrancy::PlusDarker => None,
+        if self.scanout() {
+            self.inner.underlying_storage(renderer)
+        } else {
+            None
         }
     }
 }

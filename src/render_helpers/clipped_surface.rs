@@ -9,6 +9,7 @@ use smithay::backend::renderer::utils::{CommitCounter, DamageSet, OpaqueRegions}
 use smithay::utils::user_data::UserDataMap;
 use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 
+use super::color;
 use super::damage::ExtraDamage;
 use super::renderer::{AsGlesFrame as _, NiriRenderer};
 use super::shaders::{mat3_uniform, Shaders};
@@ -97,6 +98,22 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
             Uniform::new("corner_radius", <[f32; 4]>::from(self.corner_radius)),
             mat3_uniform("input_to_geo", input_to_geo),
         ]
+    }
+
+    /// The program and uniforms it draws with: its own, or, for a surface with its own colour
+    /// description, `clipped_surface_cm`, which clips and converts in one.
+    fn program_for(
+        &self,
+        frame: &mut GlesFrame<'_, '_>,
+    ) -> (GlesTexProgram, Vec<Uniform<'static>>) {
+        let mut uniforms = self.compute_uniforms();
+        if let Some(params) = self.inner.color() {
+            if let Some(program) = Shaders::get_from_frame(frame).clipped_surface_cm.clone() {
+                uniforms.extend(color::uniforms(&params, color::target(frame)));
+                return (program, uniforms);
+            }
+        }
+        (self.program.clone(), uniforms)
     }
 
     pub fn shader(renderer: &mut R) -> Option<&GlesTexProgram> {
@@ -238,16 +255,10 @@ impl RenderElement<GlesRenderer> for ClippedSurfaceRenderElement<GlesRenderer> {
         opaque_regions: &[Rectangle<i32, Physical>],
         cache: Option<&UserDataMap>,
     ) -> Result<(), GlesError> {
-        frame.override_default_tex_program(self.program.clone(), self.compute_uniforms());
-        RenderElement::<GlesRenderer>::draw(
-            &self.inner,
-            frame,
-            src,
-            dst,
-            damage,
-            opaque_regions,
-            cache,
-        )?;
+        let (program, uniforms) = self.program_for(frame);
+        frame.override_default_tex_program(program, uniforms);
+        self.inner
+            .draw_gles(frame, src, dst, damage, opaque_regions, cache, false)?;
         frame.clear_tex_program_override();
         Ok(())
     }
@@ -271,10 +282,12 @@ impl<'render> RenderElement<TtyRenderer<'render>>
         opaque_regions: &[Rectangle<i32, Physical>],
         cache: Option<&UserDataMap>,
     ) -> Result<(), TtyRendererError<'render>> {
+        let (program, uniforms) = self.program_for(frame.as_gles_frame());
         frame
             .as_gles_frame()
-            .override_default_tex_program(self.program.clone(), self.compute_uniforms());
-        RenderElement::draw(&self.inner, frame, src, dst, damage, opaque_regions, cache)?;
+            .override_default_tex_program(program, uniforms);
+        self.inner
+            .draw_tty(frame, src, dst, damage, opaque_regions, cache, false)?;
         frame.as_gles_frame().clear_tex_program_override();
         Ok(())
     }
