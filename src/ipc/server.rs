@@ -33,6 +33,7 @@ use smithay::wayland::shell::wlr_layer::{KeyboardInteractivity, Layer};
 use crate::backend::IpcOutputMap;
 use crate::input::pick_window_grab::PickWindowGrab;
 use crate::layout::workspace::WorkspaceId;
+use crate::layout::{LayoutElement as _, SizingMode};
 use crate::niri::State;
 use crate::utils::{version, with_toplevel_role};
 use crate::window::Mapped;
@@ -517,6 +518,9 @@ fn make_ipc_window(
     workspace_id: Option<WorkspaceId>,
     layout: WindowLayout,
 ) -> niri_ipc::Window {
+    // read before with_toplevel_role: sizing_mode() takes the surface's
+    // state lock too, and taking it inside would deadlock
+    let is_fullscreen = mapped.sizing_mode() == SizingMode::Fullscreen;
     with_toplevel_role(mapped.toplevel(), |role| niri_ipc::Window {
         id: mapped.id().get(),
         title: role.title.clone(),
@@ -526,6 +530,7 @@ fn make_ipc_window(
         is_focused: mapped.is_focused(),
         is_floating: mapped.is_floating(),
         is_urgent: mapped.is_urgent(),
+        is_fullscreen,
         layout,
         focus_timestamp: mapped.get_focus_timestamp().map(Timestamp::from),
     })
@@ -722,8 +727,9 @@ impl State {
             };
 
             let workspace_id = ws_id.map(|id| id.get());
-            let mut changed =
-                ipc_win.workspace_id != workspace_id || ipc_win.is_floating != mapped.is_floating();
+            let mut changed = ipc_win.workspace_id != workspace_id
+                || ipc_win.is_floating != mapped.is_floating()
+                || ipc_win.is_fullscreen != (mapped.sizing_mode() == SizingMode::Fullscreen);
 
             changed |= with_toplevel_role(mapped.toplevel(), |role| {
                 ipc_win.title != role.title || ipc_win.app_id != role.app_id
