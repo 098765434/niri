@@ -140,7 +140,10 @@ survive.
 - Only outputs rendered on the primary GPU can do HDR.
 - There is no HLG and no ICC.
 - The content's light levels are read from its description, not from per-frame metadata.
-- Reference white is the only knob: there is no per-application brightness.
+- Reference white is the only knob: there is no per-application brightness. On panels that ignore
+  their backlight under PQ (the amdgpu OLED this was written on), it is also the screen's
+  brightness: amane-shell moves `sdr-brightness` from the brightness keys and sliders while HDR is
+  on.
 
 ## Testing
 
