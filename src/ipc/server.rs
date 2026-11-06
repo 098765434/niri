@@ -518,6 +518,9 @@ fn make_ipc_window(
     workspace_id: Option<WorkspaceId>,
     layout: WindowLayout,
 ) -> niri_ipc::Window {
+    // read before with_toplevel_role: sizing_mode() takes the surface's
+    // state lock too, and taking it inside would deadlock
+    let is_fullscreen = mapped.sizing_mode() == SizingMode::Fullscreen;
     with_toplevel_role(mapped.toplevel(), |role| niri_ipc::Window {
         id: mapped.id().get(),
         title: role.title.clone(),
@@ -527,7 +530,7 @@ fn make_ipc_window(
         is_focused: mapped.is_focused(),
         is_floating: mapped.is_floating(),
         is_urgent: mapped.is_urgent(),
-        is_fullscreen: mapped.sizing_mode() == SizingMode::Fullscreen,
+        is_fullscreen,
         layout,
         focus_timestamp: mapped.get_focus_timestamp().map(Timestamp::from),
     })
