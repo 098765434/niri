@@ -33,6 +33,7 @@ use smithay::wayland::fractional_scale::FractionalScaleHandler;
 use smithay::wayland::idle_inhibit::IdleInhibitHandler;
 use smithay::wayland::idle_notify::{IdleNotifierHandler, IdleNotifierState};
 use smithay::wayland::input_method::{InputMethodHandler, PopupSurface};
+use smithay::wayland::text_input::TextInputSeat;
 use smithay::wayland::keyboard_shortcuts_inhibit::{
     KeyboardShortcutsInhibitHandler, KeyboardShortcutsInhibitState, KeyboardShortcutsInhibitor,
 };
@@ -75,7 +76,7 @@ use smithay::{
 pub use crate::handlers::xdg_shell::KdeDecorationsModeState;
 use crate::layout::workspace::WorkspaceId;
 use crate::layout::ActivateWindow;
-use crate::niri::{DndIcon, NewClient, State};
+use crate::niri::{ClientState, DndIcon, KeyboardFocus, NewClient, State};
 use crate::protocols::ext_workspace::{self, ExtWorkspaceHandler, ExtWorkspaceManagerState};
 use crate::protocols::foreign_toplevel::{
     self, ForeignToplevelHandler, ForeignToplevelManagerState,
@@ -89,10 +90,16 @@ use crate::protocols::virtual_pointer::{
     VirtualPointerInputBackend, VirtualPointerManagerState, VirtualPointerMotionAbsoluteEvent,
     VirtualPointerMotionEvent,
 };
-use crate::utils::{output_size, send_scale_transform};
+use crate::protocols::secure_fill::{
+    self, Identity, SecureFillHandler, SecureFillManagerState, TargetKey,
+};
+use crate::utils::{
+    get_credentials_for_surface, output_size, send_scale_transform, with_toplevel_role,
+};
 use crate::{
     delegate_ext_workspace, delegate_foreign_toplevel, delegate_gamma_control,
     delegate_mutter_x11_interop, delegate_output_management, delegate_screencopy,
+    delegate_secure_fill,
     delegate_virtual_pointer,
 };
 
@@ -279,6 +286,100 @@ impl KeyboardShortcutsInhibitHandler for State {
 }
 
 delegate_input_method_manager!(State);
+
+impl SecureFillHandler for State {
+    fn secure_fill_state(&mut self) -> &mut SecureFillManagerState {
+        &mut self.niri.secure_fill_state
+    }
+
+    fn secure_fill_snapshot(&mut self) -> (Option<TargetKey>, Identity) {
+        let mut identity = Identity::default();
+
+        // only a window or a layer surface the user typed into; not the lock screen or niri's UI
+        let focused = match &self.niri.keyboard_focus {
+            KeyboardFocus::Layout {
+                surface: Some(surface),
+            } => {
+                identity.flags |= secure_fill::FLAG_WINDOW;
+                surface.clone()
+            }
+            KeyboardFocus::LayerShell { surface } => {
+                identity.flags |= secure_fill::FLAG_LAYER;
+                surface.clone()
+            }
+            _ => return (None, identity),
+        };
+
+        let text_input = self.niri.seat.text_input().clone();
+
+        // the text input's surface can be a popup or subsurface of the focused one
+        let Some(field_surface) = text_input.focus().filter(|surface| surface.is_alive()) else {
+            return (None, identity);
+        };
+        if self.niri.find_root_shell_surface(&field_surface) != focused {
+            return (None, identity);
+        }
+
+        let mut active = None;
+        text_input.with_active_text_input(|text_input, _| active = Some(text_input.id()));
+        if active.is_some() {
+            identity.flags |= secure_fill::FLAG_TEXT_INPUT;
+        }
+
+        if let Some(client) = field_surface.client() {
+            if client.get_data::<ClientState>().is_some_and(|data| data.restricted) {
+                identity.flags |= secure_fill::FLAG_SANDBOXED;
+            }
+        }
+
+        match get_credentials_for_surface(&field_surface) {
+            Some(credentials) => {
+                identity.pid = credentials.pid;
+
+                // a process in another mount or user namespace, or under another root, can
+                // name any path it likes: it's a sandbox, and its exe says nothing
+                if secure_fill::same_namespaces(credentials.pid) {
+                    identity.exe = std::fs::read_link(format!("/proc/{}/exe", credentials.pid))
+                        .map(|exe| exe.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                } else {
+                    identity.flags |= secure_fill::FLAG_SANDBOXED;
+                }
+            }
+            None => identity.flags |= secure_fill::FLAG_UNKNOWN_CREDENTIALS,
+        }
+
+        if identity.flags & secure_fill::FLAG_WINDOW != 0 {
+            if let Some((mapped, _)) = self.niri.layout.find_window_and_output(&focused) {
+                identity.window_id = mapped.id().get();
+                identity.app_id = with_toplevel_role(mapped.toplevel(), |role| {
+                    role.app_id.clone().unwrap_or_default()
+                });
+            }
+        }
+
+        let key = TargetKey {
+            surface: field_surface.downgrade(),
+            text_input: active,
+        };
+
+        (Some(key), identity)
+    }
+
+    fn secure_fill_commit(&mut self, text: &str) {
+        let text_input = self.niri.seat.text_input().clone();
+
+        text_input.with_active_text_input(|text_input, _| {
+            text_input.commit_string(Some(text.to_owned()));
+        });
+        text_input.done(false);
+    }
+
+    fn secure_fill_locked(&self) -> bool {
+        self.niri.is_locked()
+    }
+}
+delegate_secure_fill!(State);
 delegate_keyboard_shortcuts_inhibit!(State);
 delegate_virtual_keyboard_manager!(State);
 

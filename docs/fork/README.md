@@ -22,6 +22,7 @@ log: [maintaining.md](maintaining.md).
 | Mod swipe | Mod-held three-finger swipes close, maximize and resize the focused window | `gestures { mod-swipe { off } }` | [gestures/mod-swipe.md](gestures/mod-swipe.md) | implemented, `f4367f88`, `4177c74f` |
 | IPC events | per-frame gesture progress, and when the desktop is obscured | `OverviewProgress`, `ViewOffsetChanged`, `WorkspaceSwitchProgress`, `DesktopObscured` | [ipc/events.md](ipc/events.md) | implemented, `59fe93e4`, `9d5bf9fc`, `871b5ee5` |
 | IPC actions | move a window's column without moving the focus | `MoveColumnToIndex { window_id }`, `niri msg action move-column-to-index --window-id` | [ipc/actions.md](ipc/actions.md) | implemented, `36f2cce3` |
+| Secure fill | a password manager fills the focused field only if it's still the one it checked, and learns its owner from the socket | protocol `niri-secure-fill-v1` | [input/secure-fill.md](input/secure-fill.md) | implemented |
 
 Each feature doc starts with **Usage** (config, protocol or IPC), then **Design / internals**.
 
@@ -37,6 +38,7 @@ Each feature doc starts with **Usage** (config, protocol or IPC), then **Design 
 - **Display:** [HDR](display/hdr.md), the output in HDR10 and clients' colour described through
   `wp-color-management-v1`.
 - **Gestures:** [Mod swipe](gestures/mod-swipe.md), touchpad swipes on the focused window.
+- **Input:** [Secure fill](input/secure-fill.md), checked password fill for the shell's input method.
 - **IPC:** [events](ipc/events.md) a bar animates from, and [actions](ipc/actions.md) a dock
   sends.
 
