@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="niri_secure_fill_v1">
+  <copyright>
+    Copyright © 2026 the niri fork contributors
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+  </copyright>
+
+  <description summary="fill a text field only if it is still the one that was checked">
+    Lets a password manager put text into the focused text field (a
+    zwp_text_input_v3) knowing who will get it.
+
+    An input method's commit_string goes to whichever text input is focused
+    when the request arrives, so text meant for one app can reach another
+    that took the focus in between. Here the client first takes a target: a
+    snapshot of the focused text input, with who owns it as the compositor
+    knows it (the process id from the client's socket and the executable
+    that process runs, never anything the app said about itself). It then
+    asks to fill that target; the compositor puts the text in only if the
+    same text input of the same surface still has the keyboard, and drops
+    it otherwise.
+
+    Only unrestricted clients (not run under a security context) can bind
+    the manager.
+  </description>
+
+  <interface name="niri_secure_fill_manager_v1" version="1">
+    <description summary="secure fill factory">
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the manager">
+        Targets made with it are unaffected.
+      </description>
+    </request>
+
+    <request name="get_target">
+      <description summary="snapshot the focused text field">
+        Makes a target for the text input that has the keyboard right now.
+        The target's identity event follows at once.
+      </description>
+      <arg name="id" type="new_id" interface="niri_secure_fill_target_v1"/>
+    </request>
+  </interface>
+
+  <interface name="niri_secure_fill_target_v1" version="1">
+    <description summary="a focused text field, as it was when taken">
+    </description>
+
+    <enum name="flags" bitfield="true">
+      <entry name="window" value="1" summary="the field is in a toplevel window"/>
+      <entry name="layer" value="2" summary="the field is in a layer-shell surface"/>
+      <entry name="sandboxed" value="4"
+             summary="the owner runs under a security context (a sandbox)"/>
+      <entry name="text_input" value="8"
+             summary="the owner has an enabled text input; without it fill is refused"/>
+      <entry name="unknown_credentials" value="16"
+             summary="the compositor could not learn the owner's process"/>
+    </enum>
+
+    <enum name="refusal">
+      <entry name="changed" value="0"
+             summary="another field, surface or app has the keyboard now"/>
+      <entry name="no_text_input" value="1" summary="the field takes no text input"/>
+      <entry name="locked" value="2" summary="the session is locked"/>
+      <entry name="expired" value="3" summary="the target is too old"/>
+      <entry name="used" value="4" summary="the target was filled already"/>
+      <entry name="too_soon" value="5" summary="fills come too quickly"/>
+      <entry name="invalid_text" value="6"
+             summary="the text is empty, too long or holds control characters"/>
+    </enum>
+
+    <event name="identity">
+      <description summary="who owns the field">
+        Sent once, right after the target is made. pid is 0 and exe empty
+        when the owner's process is unknown. app_id is the window's app id
+        (what the app says it is, so only a hint), empty for other
+        surfaces. window_id is the window's id as niri's IPC gives it (high
+        and low 32 bits), 0 for other surfaces.
+      </description>
+      <arg name="pid" type="int"/>
+      <arg name="exe" type="string"/>
+      <arg name="app_id" type="string"/>
+      <arg name="window_id_hi" type="uint"/>
+      <arg name="window_id_lo" type="uint"/>
+      <arg name="flags" type="uint" enum="flags"/>
+    </event>
+
+    <request name="fill">
+      <description summary="put text in the field, if it is still the same">
+        The compositor checks the same text input of the same surface has the
+        keyboard, then commits the text to it as an input method would. A
+        target is filled at most once and lives for two minutes. One filled
+        or refused event answers.
+      </description>
+      <arg name="text" type="string"/>
+    </request>
+
+    <event name="filled">
+      <description summary="the text went in"/>
+    </event>
+
+    <event name="refused">
+      <description summary="the text was dropped"/>
+      <arg name="reason" type="uint" enum="refusal"/>
+    </event>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the target"/>
+    </request>
+  </interface>
+</protocol>

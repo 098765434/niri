@@ -151,6 +151,7 @@ use crate::protocols::gamma_control::GammaControlManagerState;
 use crate::protocols::mutter_x11_interop::MutterX11InteropManagerState;
 use crate::protocols::output_management::OutputManagementManagerState;
 use crate::protocols::screencopy::{Screencopy, ScreencopyBuffer, ScreencopyManagerState};
+use crate::protocols::secure_fill::SecureFillManagerState;
 use crate::protocols::vibrancy::VibrancyManagerState;
 use crate::protocols::virtual_pointer::VirtualPointerManagerState;
 use crate::render_helpers::blur::BlurOptions;
@@ -316,6 +317,7 @@ pub struct Niri {
     pub mutter_x11_interop_state: MutterX11InteropManagerState,
     pub blur_shapes_state: BlurShapesManagerState,
     pub vibrancy_state: VibrancyManagerState,
+    pub secure_fill_state: SecureFillManagerState,
     pub color_management_state: ColorManagementState,
 
     // This will not work as is outside of tests, so it is gated with #[cfg(test)] for now. In
@@ -2396,6 +2398,8 @@ impl Niri {
             MutterX11InteropManagerState::new::<State, _>(&display_handle, move |_| true);
         let mut blur_shapes_state = BlurShapesManagerState::new::<State>(&display_handle);
         let vibrancy_state = VibrancyManagerState::new::<State>(&display_handle);
+        let secure_fill_state =
+            SecureFillManagerState::new::<State, _>(&display_handle, client_is_unrestricted);
         let color_management_state = ColorManagementState::new::<State>(&display_handle);
         {
             let materials = &config.borrow().materials;
@@ -2598,6 +2602,7 @@ impl Niri {
             mutter_x11_interop_state,
             blur_shapes_state,
             vibrancy_state,
+            secure_fill_state,
             color_management_state,
             #[cfg(test)]
             single_pixel_buffer_state,
