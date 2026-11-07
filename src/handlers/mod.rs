@@ -33,7 +33,6 @@ use smithay::wayland::fractional_scale::FractionalScaleHandler;
 use smithay::wayland::idle_inhibit::IdleInhibitHandler;
 use smithay::wayland::idle_notify::{IdleNotifierHandler, IdleNotifierState};
 use smithay::wayland::input_method::{InputMethodHandler, PopupSurface};
-use smithay::wayland::text_input::TextInputSeat;
 use smithay::wayland::keyboard_shortcuts_inhibit::{
     KeyboardShortcutsInhibitHandler, KeyboardShortcutsInhibitState, KeyboardShortcutsInhibitor,
 };
@@ -59,6 +58,7 @@ use smithay::wayland::session_lock::{
     LockSurface, SessionLockHandler, SessionLockManagerState, SessionLocker,
 };
 use smithay::wayland::tablet_manager::TabletSeatHandler;
+use smithay::wayland::text_input::TextInputSeat;
 use smithay::wayland::xdg_activation::{
     XdgActivationHandler, XdgActivationState, XdgActivationToken, XdgActivationTokenData,
 };
@@ -85,13 +85,13 @@ use crate::protocols::gamma_control::{GammaControlHandler, GammaControlManagerSt
 use crate::protocols::mutter_x11_interop::MutterX11InteropHandler;
 use crate::protocols::output_management::{OutputManagementHandler, OutputManagementManagerState};
 use crate::protocols::screencopy::{Screencopy, ScreencopyHandler, ScreencopyManagerState};
+use crate::protocols::secure_fill::{
+    self, Identity, SecureFillHandler, SecureFillManagerState, TargetKey,
+};
 use crate::protocols::virtual_pointer::{
     VirtualPointerAxisEvent, VirtualPointerButtonEvent, VirtualPointerHandler,
     VirtualPointerInputBackend, VirtualPointerManagerState, VirtualPointerMotionAbsoluteEvent,
     VirtualPointerMotionEvent,
-};
-use crate::protocols::secure_fill::{
-    self, Identity, SecureFillHandler, SecureFillManagerState, TargetKey,
 };
 use crate::utils::{
     get_credentials_for_surface, output_size, send_scale_transform, with_toplevel_role,
@@ -99,8 +99,7 @@ use crate::utils::{
 use crate::{
     delegate_ext_workspace, delegate_foreign_toplevel, delegate_gamma_control,
     delegate_mutter_x11_interop, delegate_output_management, delegate_screencopy,
-    delegate_secure_fill,
-    delegate_virtual_pointer,
+    delegate_secure_fill, delegate_virtual_pointer,
 };
 
 pub const XDG_ACTIVATION_TOKEN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -327,7 +326,10 @@ impl SecureFillHandler for State {
         }
 
         if let Some(client) = field_surface.client() {
-            if client.get_data::<ClientState>().is_some_and(|data| data.restricted) {
+            if client
+                .get_data::<ClientState>()
+                .is_some_and(|data| data.restricted)
+            {
                 identity.flags |= secure_fill::FLAG_SANDBOXED;
             }
         }

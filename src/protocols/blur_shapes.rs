@@ -278,7 +278,7 @@ fn shape(
     tint: u32,
 ) -> Option<BlurShape> {
     let [x, y, w, h] = rect;
-    if !(w > 0. && h > 0.) || !x.is_finite() || !y.is_finite() {
+    if !(w > 0. && h > 0. && x.is_finite() && y.is_finite()) {
         return None;
     }
 

@@ -161,7 +161,10 @@ impl EffectBuffer {
         self.variants
             .retain(|variant| frame - variant.used_at <= IDLE_FRAMES);
         if self.variants.len() != before {
-            trace!("released {} idle blur variants", before - self.variants.len());
+            trace!(
+                "released {} idle blur variants",
+                before - self.variants.len()
+            );
         }
 
         if self.blur.is_some() && frame - self.blur_used_at > IDLE_FRAMES {

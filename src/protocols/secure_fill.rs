@@ -162,8 +162,7 @@ pub struct SecureFillGlobalData {
     filter: Box<dyn for<'c> Fn(&'c Client) -> bool + Send + Sync>,
 }
 
-impl<D> GlobalDispatch<NiriSecureFillManagerV1, SecureFillGlobalData, D>
-    for SecureFillManagerState
+impl<D> GlobalDispatch<NiriSecureFillManagerV1, SecureFillGlobalData, D> for SecureFillManagerState
 where
     D: GlobalDispatch<NiriSecureFillManagerV1, SecureFillGlobalData>,
     D: Dispatch<NiriSecureFillManagerV1, ()>,

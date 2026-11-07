@@ -39,7 +39,10 @@ fn fork_docs_parse() {
             let must_fail = line.contains("must-fail");
 
             let mut code = String::new();
-            for (_, line) in lines.by_ref().take_while(|(_, line)| !line.starts_with("```")) {
+            for (_, line) in lines
+                .by_ref()
+                .take_while(|(_, line)| !line.starts_with("```"))
+            {
                 code.push_str(line);
                 code.push('\n');
             }
