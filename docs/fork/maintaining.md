@@ -245,3 +245,4 @@ comment. The branch before that is `ocbk-pre-tidy` (`16ab6bdb`).
 | `bd862d07` | [IPC events](ipc/events.md) | `DesktopObscured` forgets unplugged outputs; tests for the fork's event-stream state |
 | `7f180178` | housekeeping | `Niri`'s fork parts in `src/niri/fork.rs` |
 | `4e448827` | [HDR](display/hdr.md) | HDR on a TTY output in `src/backend/tty/hdr.rs` |
+| `989d475e` | [IPC events](ipc/events.md) | `KeyboardLockKeysChanged` and `OutputsChanged` (`src/ipc/server/fork.rs`) |
