@@ -1151,7 +1151,7 @@ pub struct Material {
     pub adaptive_tint: Option<FloatOrInt<0, 1>>,
     /// How much of the background's brightness range the glass keeps, toward its tint's side:
     /// dark glass keeps 0 to this, light glass this far below white. 1 (the default) keeps it
-    /// all; lower keeps a thin tint readable over any wallpaper, as Apple's materials do.
+    /// all; lower keeps a thin tint readable over any wallpaper.
     #[knuffel(child, unwrap(argument))]
     pub tone: Option<FloatOrInt<0, 1>>,
     /// Saturation of the background, in place of the blur's.

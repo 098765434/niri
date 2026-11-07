@@ -115,7 +115,7 @@ void main() {
         vec3 tint_rgb = glass_tint.rgb / max(glass_tint.a, 0.0001);
 
         // The tone: the background's brightness squeezed toward the tint's side,
-        // its hue kept, as Apple's darken and lighten layers do.
+        // its hue kept, as darken and lighten layers do.
         float tone = glass_tint_params.z;
         if (tone < 1.0) {
             color.rgb = dot(tint_rgb, LUMA) < 0.5
