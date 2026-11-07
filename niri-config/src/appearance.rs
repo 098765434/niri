@@ -1109,7 +1109,7 @@ impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
     }
 }
 
-/// Named looks for blur shapes (`niri-blur-shapes-v1`): liquid glass drawn by niri over the
+/// Named looks for blur shapes (`niri-blur-shapes-v1`): glass drawn by niri over the
 /// blurred background, which a client picks by name for each shape.
 #[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
 pub struct Materials(#[knuffel(children(name = "material"))] pub Vec<Material>);
