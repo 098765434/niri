@@ -1,0 +1,43 @@
+# The fork's own CI, for the ocbk branch. It runs upstream's checks inside the
+# flake's dev shell: the fork's HDR output needs libdisplay-info 0.2
+# (`v0_2`), which the distributions upstream's ci.yml installs from don't
+# ship. upstream's ci.yml is turned off on the fork in the Actions settings,
+# not edited, so a rebase never conflicts here.
+name: fork
+
+on:
+  push:
+    branches: [ocbk]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      # niri and its dev shell don't fit in the runner's free space otherwise
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          dotnet: false
+          large-packages: false
+
+      - uses: actions/checkout@v6
+        with:
+          show-progress: false
+
+      - uses: cachix/install-nix-action@v31
+
+      - uses: Swatinem/rust-cache@v2
+
+      # the dev shell's nightly rustfmt, which rustfmt.toml needs
+      - name: rustfmt
+        run: nix develop -c cargo fmt --all -- --check
+
+      - name: clippy
+        run: nix develop -c cargo clippy --all --all-targets --locked
+
+      # the fork-docs parse test included; the EGL tests need a GPU driver
+      # the runner doesn't have, and the flake's own build skips them too
+      - name: test
+        run: nix develop -c cargo test --all --exclude niri-visual-tests --locked -- --skip=::egl
