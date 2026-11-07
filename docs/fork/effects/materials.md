@@ -68,11 +68,11 @@ With `report-backdrop` on, niri tells the client how bright the blurred backdrop
 The reading is coarse: an 8×8 version of the shape's area, read back from the GPU without waiting, at most four times a second per shape, and sent only when it moves noticeably.
 It works for non-xray shapes only, and it's off by default.
 
-With `blur-passes` or `blur-offset` set, the backdrop behind that material's shapes is blurred with them instead of `blur {}`'s, so big glass can frost more than small glass, as Apple's does: Figma's macOS kit frosts small glass at 6 and medium and large glass at 16.
+With `blur-passes` or `blur-offset` set, the backdrop behind that material's shapes is blurred with them instead of `blur {}`'s, so big glass can frost more than small glass: the shell frosts small glass at 6 and medium and large glass at 16.
 
-The lens bends the backdrop in from past the shape's edge, as Apple's glass does, so a rim continues what lies beside the shape; the blurred capture behind a surface's shapes reaches `refraction` further out for it. `rim` is a hairline at the edge, brightest facing `light-angle` and caught again on the far side by `far-rim`; `glow` is a soft haze over the bevel on those sides. Apple's glass lights the rim from the top with an opposite fill light (`light-angle 270`, `far-rim 0.5`) and has next to no glow.
+The lens bends the backdrop in from past the shape's edge, so a rim continues what lies beside the shape; the blurred capture behind a surface's shapes reaches `refraction` further out for it. `rim` is a hairline at the edge, brightest facing `light-angle` and caught again on the far side by `far-rim`; `glow` is a soft haze over the bevel on those sides. Lit from the top with an opposite fill light (`light-angle 270`, `far-rim 0.5`) and next to no glow, the rim reads as a thin bright edge.
 
-`tone` below 1 squeezes the backdrop's brightness toward the tint's side before the tint is laid on, keeping its hue: under a dark tint the backdrop keeps 0 to `tone` of its brightness, under a light one it stays within `tone` of white. Like the darken and lighten layers in Apple's materials, this keeps a thin tint readable over any wallpaper. It only applies to shapes with a tint.
+`tone` below 1 squeezes the backdrop's brightness toward the tint's side before the tint is laid on, keeping its hue: under a dark tint the backdrop keeps 0 to `tone` of its brightness, under a light one it stays within `tone` of white. Like darken and lighten layers, this keeps a thin tint readable over any wallpaper. It only applies to shapes with a tint.
 Each distinct blur costs a blur of its own: for xray, one more blur of the backdrop, redone only when it changes; for non-xray shapes, one more capture and blur of the area behind that blur's shapes, every frame they draw.
 niri keeps up to four such blurs per backdrop.
 
@@ -84,7 +84,7 @@ A layer or window rule can also name a material in its `background-effect`, or i
 niri then draws the whole surface's (or each pop-up's) effect as that material, in the shape of its geometry and `geometry-corner-radius`, with no tint: the client draws its own fill.
 This is how a client that can't send blur shapes, such as a pop-up menu, gets the same glass as its parent.
 
-- `material`: the name of a material to draw the effect with, as liquid glass in the shape of the surface's geometry and `geometry-corner-radius`.
+- `material`: the name of a material to draw the effect with, as glass in the shape of the surface's geometry and `geometry-corner-radius`.
   The surface draws its own tint over it, so the material adds the lens and the lit rim.
   It needs blur, and works in a `popups {}` block too. A surface that sets its own blur region keeps plain blur there, and a name that isn't defined draws plain blur.
 
@@ -116,17 +116,17 @@ looks that shapes pick by id. They are drawn by
 `src/render_helpers/shaders/glass.frag`:
 
 - SDF-normal refraction at the edge, with red/blue parting (`dispersion`).
-- The lip bends the backdrop in from past the edge, as the recovered macOS 26
-  glass shaders do (sampling outward along the SDF normal). `74b623a7` had it
+- The lip bends the backdrop in from past the edge (sampling outward along the
+  SDF normal). `74b623a7` had it
   magnify inwards because the capture stopped at the shape's edge; now
   `render_shapes` grows each blur group's capture by the material's
   `refraction`, so the rim shows real backdrop.
-- A rim hairline lit from `light-angle`, with a far-edge catch (`far-rim`, Apple's
+- A rim hairline lit from `light-angle`, with a far-edge catch (`far-rim`, an
   opposite fill light), a specular highlight, and a separate `glow` over the
   bevel's lit sides (a quarter of `rim` unless set).
 - With `tone` below 1, the backdrop's brightness is first squeezed toward the
-  tint's side (dark tint: `c·tone`; light tint: `1 − (1 − c)·tone`), as Apple's
-  darken/lighten layers do, so thin tints stay readable.
+  tint's side (dark tint: `c·tone`; light tint: `1 − (1 − c)·tone`), as darken and
+  lighten layers do, so thin tints stay readable.
 - The client's tint is laid on. With `adaptive-tint`, it is thickened over a
   backdrop of similar brightness.
 - Optional `saturation` / `noise` override the blur's own values.

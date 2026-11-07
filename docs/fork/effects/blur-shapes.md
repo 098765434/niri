@@ -7,7 +7,7 @@ and `7bef7001` (capture reach). The materials themselves are in [materials.md](m
 ## Usage
 
 This fork offers `niri-blur-shapes-v1`: instead of a region of rectangles, a surface sends rounded rectangles, each with its own corner radii and opacity.
-niri draws each with antialiased corners at its opacity, so a client with many rounded pieces of glass (such as a control center) gets blur exactly in their shape that fades with them.
+niri draws each with antialiased corners at its opacity, so a client with many rounded pieces of glass (such as a quick settings panel) gets blur exactly in their shape that fades with them.
 A surface with blur shapes is treated like one with a blur region: blur is on unless a rule says `blur false`.
 
 A shape can also name a [material](materials.md), a liquid-glass look niri draws over the blurred background.
