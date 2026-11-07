@@ -18,11 +18,11 @@ log: [maintaining.md](maintaining.md).
 | Workspace mat | a backing behind the scrolling layout that fills the gaps | `layout { mat { … } }` | [layout/workspace-mat.md](layout/workspace-mat.md) | implemented, `58528c07`, `f297cd5e`, `74d6c36d` |
 | Gaps | gaps between workspaces, and between windows in the overview | `layout { workspace-gap }`, `overview { workspace-gap window-gap }` | [layout/gaps.md](layout/gaps.md) | implemented, `dab83f82`, `34c91b6b`, `e0139bac` |
 | Desktop layer | a background layer that stays still on the wallpaper as the desktop | `layer-rule { desktop true }` | [layout/desktop-layer.md](layout/desktop-layer.md) | implemented, `871b5ee5` |
-| HDR | HDR10 output with the SDR desktop unchanged, and colour-managed HDR surfaces | `output { hdr; sdr-brightness }`, `niri msg output … hdr`, protocol `wp-color-management-v1` | [display/hdr.md](display/hdr.md) | implemented, `b322b674`, `cf559b95` |
+| HDR | HDR10 output with the SDR desktop unchanged, and colour-managed HDR surfaces | `output { hdr; sdr-brightness }`, `niri msg output … hdr`, protocol `wp-color-management-v1` | [display/hdr.md](display/hdr.md) | implemented, `b322b674`, `cf559b95`, `b0ffbd0d` |
 | Mod swipe | Mod-held three-finger swipes close, maximize and resize the focused window | `gestures { mod-swipe { off } }` | [gestures/mod-swipe.md](gestures/mod-swipe.md) | implemented, `f4367f88`, `4177c74f` |
-| IPC events | per-frame gesture progress, and when the desktop is obscured | `OverviewProgress`, `ViewOffsetChanged`, `WorkspaceSwitchProgress`, `DesktopObscured` | [ipc/events.md](ipc/events.md) | implemented, `59fe93e4`, `9d5bf9fc`, `871b5ee5` |
+| IPC events | per-frame gesture progress, when the desktop is obscured, and whether a window is fullscreen | `OverviewProgress`, `ViewOffsetChanged`, `WorkspaceSwitchProgress`, `DesktopObscured`, `Window.is_fullscreen` | [ipc/events.md](ipc/events.md) | implemented, `59fe93e4`, `9d5bf9fc`, `871b5ee5`, `b25a5a8d`, `c7a113d6` |
 | IPC actions | move a window's column without moving the focus | `MoveColumnToIndex { window_id }`, `niri msg action move-column-to-index --window-id` | [ipc/actions.md](ipc/actions.md) | implemented, `36f2cce3` |
-| Secure fill | a password manager fills the focused field only if it's still the one it checked, and learns its owner from the socket | protocol `niri-secure-fill-v1` | [input/secure-fill.md](input/secure-fill.md) | implemented |
+| Secure fill | a password manager fills the focused field only if it's still the one it checked, and learns its owner from the socket | protocol `niri-secure-fill-v1` | [input/secure-fill.md](input/secure-fill.md); `resources/niri-secure-fill-v1.xml` | implemented, `16384e00` |
 
 Each feature doc starts with **Usage** (config, protocol or IPC), then **Design / internals**.
 
