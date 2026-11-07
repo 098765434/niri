@@ -53,7 +53,7 @@ surface's state has now. With `none` it is the plain element.
 - **plus_darker** draws with `glBlendEquationSeparate(FUNC_REVERSE_SUBTRACT, FUNC_ADD)` and
   `glBlendFunc(ONE, ONE)`: the surface is taken away from what's behind, clamped at 0. The
   client draws how far each pixel darkens, `a · (1 − c)` for a grey `c`, so the result is
-  Apple's plus-darker, `D + c − 1`. Like plus-lighter it needs only blend state, so it works
+  plus-darker as it's defined, `D + c − 1`. Like plus-lighter it needs only blend state, so it works
   under any texture program, the rounded-corner one too. The equation is put back to
   `FUNC_ADD` after the draw.
 - Alpha is kept as it was (`ZERO, ONE`).

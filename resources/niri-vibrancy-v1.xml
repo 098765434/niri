@@ -35,7 +35,7 @@
 
     With plus_darker the surface holds the amount to darken by, not the
     colour to darken with: a grey c at alpha a that should darken as
-    Apple's plus-darker does (D + c - 1) is drawn as white, 1 - c, at
+    plus-darker does (D + c - 1) is drawn as white, 1 - c, at
     alpha a, so the compositor takes a(1 - c) away from what is behind.
   </description>
 
