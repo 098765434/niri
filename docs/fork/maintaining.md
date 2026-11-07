@@ -133,11 +133,11 @@ Every commit in `v26.04..ocbk`, oldest first, by feature. Later docs-only commit
 | `3cde7327` | [materials](effects/materials.md) | materials on rules, materializing lenses, backdrop readings |
 | `c821108e` | housekeeping | `FORK.md`: rule materials, materialize and backdrop readings |
 | `4c68634c` | [vibrancy](effects/vibrancy.md) | `niri-vibrancy-v1`: blend a surface with what's behind it |
-| `ada326f0` | [vibrancy](effects/vibrancy.md) | plus-darker subtracts, as Apple's does |
+| `ada326f0` | [vibrancy](effects/vibrancy.md) | plus-darker subtracts, as its formula says |
 | `a1a78bd0` | [materials](effects/materials.md) | a blur of their own (`blur-passes`, `blur-offset`) |
 | `e15dec22` | housekeeping | docs: blur shapes with a material's own blur |
 | `148ff076` | [workspace mat](layout/workspace-mat.md) | draft spec |
-| `78620a8c` | [materials](effects/materials.md) | `tone`, Apple's luminosity adjustment |
+| `78620a8c` | [materials](effects/materials.md) | `tone`, a luminosity adjustment that keeps thin tints readable |
 | `7bef7001` | [materials](effects/materials.md) | outward lens with a capture reach, and `glow` apart from the rim |
 | `58528c07` | [workspace mat](layout/workspace-mat.md) | a workspace mat behind the scrolling layout |
 | `cc098153` | [workspace mat](layout/workspace-mat.md) | docs: the mat in the wiki and `FORK.md` |

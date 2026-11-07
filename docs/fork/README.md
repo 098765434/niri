@@ -28,7 +28,7 @@ Each feature doc starts with **Usage** (config, protocol or IPC), then **Design 
 
 ## Groups
 
-- **Effects:** liquid glass. [Materials](effects/materials.md) are the looks,
+- **Effects:** glass. [Materials](effects/materials.md) are the looks,
   [blur shapes](effects/blur-shapes.md) are how a client asks for them in its own shapes, and
   [vibrancy](effects/vibrancy.md) blends a client's labels with the glass under them.
   [Memory](effects/memory.md) is what all of it holds on the GPU and when it lets go.
