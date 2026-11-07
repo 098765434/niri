@@ -64,6 +64,14 @@ are taken as opaque: a translucent or frosted window that covers the area counts
 A switch in progress or an overview anywhere between closed and open counts as visible: either
 shows what's under the workspaces.
 
+### `Window.is_fullscreen`
+
+Not an event of its own: a field on `Window`, so `niri msg --json windows`, `focused-window`
+and the `WindowOpenedOrChanged` event carry it. It is true while the window is fullscreen (not
+windowed fullscreen), and a change sends `WindowOpenedOrChanged`, so a bar can hide for a
+fullscreen window. It's `#[serde(default)]`, so clients and servers built without it still read
+each other. The server reads it before taking the toplevel's lock (`c7a113d6`).
+
 ### Reading the stream
 
 - **New clients get the current values first.** `EventStreamState::replicate()` sends each

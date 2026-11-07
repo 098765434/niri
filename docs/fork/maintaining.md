@@ -105,6 +105,8 @@ re-pin the consuming config (`nix flake update niri-fork`).
 | Workspace mat | maybe: plain config, no protocol |
 | Desktop layer | maybe: plain config plus one IPC event |
 | HDR | maybe in parts: the colour-management protocol and conversion are generic; the composition keeps the fork's gamma-2.2 blending |
+| `Window.is_fullscreen` | likely: one IPC field, defaulted for older clients |
+| Secure fill | no as-is: private protocol, for one password manager's fill |
 
 ## Commit log
 
@@ -149,3 +151,11 @@ Every commit in `v26.04..ocbk`, oldest first, by feature. Later docs-only commit
 | `0b2ab4e5` | [effects memory](effects/memory.md) | base chain and background only when used, idle eviction, capture targets released, shape captures dropped, swipe offscreen cleared |
 | `b322b674` | [HDR](display/hdr.md) | HDR10 output: KMS properties, 10-bit scanout, half-float composition encoded to PQ |
 | `cf559b95` | [HDR](display/hdr.md) | `wp-color-management-v1`, HDR surfaces converted and tone-mapped per target |
+| `63e42e39` | [HDR](display/hdr.md) | docs: the composition, KMS and `wp-color-management-v1` |
+| `b0ffbd0d` | [HDR](display/hdr.md) | no crash when a client asks for an image description's information |
+| `b25a5a8d` | [IPC events](ipc/events.md) | `Window.is_fullscreen`, so a bar can hide for a fullscreen window |
+| `c7a113d6` | [IPC events](ipc/events.md) | `is_fullscreen` read before taking the toplevel's lock |
+| `5adb24b8` | [HDR](display/hdr.md) | docs: reference white is the panel's brightness on OLEDs that ignore the backlight |
+| `16384e00` | [secure fill](input/secure-fill.md) | `niri-secure-fill-v1` (`resources/niri-secure-fill-v1.xml`): fill a text field only if it's still the one checked |
+| `e1033b3d` | housekeeping | rustfmt and clippy on the lines the fork added |
+| `72d679c5` | housekeeping | the fork's CI (`.github/workflows/fork.yml`), in the flake's dev shell; upstream's `ci.yml` can't build the fork, since HDR needs libdisplay-info 0.2 |
