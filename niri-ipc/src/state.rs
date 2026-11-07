@@ -9,6 +9,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
+pub use crate::fork::LockKeysState;
 use crate::{Cast, Event, KeyboardLayouts, Window, Workspace};
 
 /// Part of the state communicated via the event stream.
@@ -55,6 +56,9 @@ pub struct EventStreamState {
 
     /// State of whether each output's desktop is obscured.
     pub desktop_obscured: DesktopObscuredState,
+
+    /// State of Caps Lock and Num Lock.
+    pub lock_keys: LockKeysState,
 
     /// State of the config.
     pub config: ConfigState,
@@ -158,6 +162,7 @@ impl EventStreamStatePart for EventStreamState {
         events.extend(self.view_offset.replicate());
         events.extend(self.workspace_switch.replicate());
         events.extend(self.desktop_obscured.replicate());
+        events.extend(self.lock_keys.replicate());
         events.extend(self.config.replicate());
         events.extend(self.casts.replicate());
         events
@@ -172,6 +177,7 @@ impl EventStreamStatePart for EventStreamState {
         let event = self.view_offset.apply(event)?;
         let event = self.workspace_switch.apply(event)?;
         let event = self.desktop_obscured.apply(event)?;
+        let event = self.lock_keys.apply(event)?;
         let event = self.config.apply(event)?;
         let event = self.casts.apply(event)?;
         Some(event)

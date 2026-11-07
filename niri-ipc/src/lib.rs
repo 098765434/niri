@@ -1765,6 +1765,21 @@ pub enum Event {
         /// Whether the desktop is obscured.
         obscured: bool,
     },
+    /// Caps Lock or Num Lock turned on or off.
+    ///
+    /// You will always receive this event when connecting to the event stream, with the state
+    /// at that time.
+    KeyboardLockKeysChanged {
+        /// Whether Caps Lock is on.
+        caps_lock: bool,
+        /// Whether Num Lock is on.
+        num_lock: bool,
+    },
+    /// Something [`Request::Outputs`] answers changed: an output was connected or disconnected,
+    /// or its mode, scale, position, HDR or SDR brightness changed.
+    ///
+    /// It carries nothing; ask for the outputs again.
+    OutputsChanged {},
     /// The configuration was reloaded.
     ///
     /// You will always receive this event when connecting to the event stream, indicating the last

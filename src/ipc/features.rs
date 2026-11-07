@@ -26,6 +26,8 @@ const FEATURES: &[(&str, u32)] = &[
     ("view-offset", 1),
     ("workspace-switch-progress", 1),
     ("desktop-obscured", 1),
+    ("lock-keys", 1),
+    ("outputs-changed", 1),
 ];
 
 /// The list sent in `Response::Features`.

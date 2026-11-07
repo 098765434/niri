@@ -507,6 +507,15 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                     Event::DesktopObscured { output, obscured } => {
                         println!("Desktop obscured on {output}: {obscured}");
                     }
+                    Event::KeyboardLockKeysChanged {
+                        caps_lock,
+                        num_lock,
+                    } => {
+                        println!("Lock keys: caps lock {caps_lock}, num lock {num_lock}");
+                    }
+                    Event::OutputsChanged {} => {
+                        println!("Outputs changed");
+                    }
                     Event::ConfigLoaded { failed } => {
                         let status = if failed {
                             "with an error"

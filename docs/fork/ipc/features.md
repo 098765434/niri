@@ -33,6 +33,8 @@ niri is built, so ask once per connection.
 | `view-offset` | 1 | the [`ViewOffsetChanged`](events.md) event |
 | `workspace-switch-progress` | 1 | the [`WorkspaceSwitchProgress`](events.md) event |
 | `desktop-obscured` | 1 | the [`DesktopObscured`](events.md) event |
+| `lock-keys` | 1 | the [`KeyboardLockKeysChanged`](events.md) event |
+| `outputs-changed` | 1 | the [`OutputsChanged`](events.md) event |
 
 The protocol versions come from the globals' own constants, so they can't drift. Any other
 version goes up by hand in `src/ipc/features.rs` when the feature changes in a way a client can

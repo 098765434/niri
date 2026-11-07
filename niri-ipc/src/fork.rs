@@ -2,6 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::state::EventStreamStatePart;
+use crate::Event;
+
 /// A feature this compositor has beyond upstream niri, with the version of its contract.
 ///
 /// Returned by [`Request::Features`](crate::Request::Features). Upstream niri can't parse that
@@ -16,6 +19,44 @@ pub struct Feature {
     pub version: u32,
 }
 
+/// Caps Lock and Num Lock, communicated over the event stream.
+#[derive(Debug, Default)]
+pub struct LockKeysState {
+    /// Whether Caps Lock is on.
+    pub caps_lock: bool,
+    /// Whether Num Lock is on.
+    pub num_lock: bool,
+    /// Whether a value has been received yet.
+    pub seen: bool,
+}
+
+impl EventStreamStatePart for LockKeysState {
+    fn replicate(&self) -> Vec<Event> {
+        if !self.seen {
+            return Vec::new();
+        }
+        vec![Event::KeyboardLockKeysChanged {
+            caps_lock: self.caps_lock,
+            num_lock: self.num_lock,
+        }]
+    }
+
+    fn apply(&mut self, event: Event) -> Option<Event> {
+        match event {
+            Event::KeyboardLockKeysChanged {
+                caps_lock,
+                num_lock,
+            } => {
+                self.caps_lock = caps_lock;
+                self.num_lock = num_lock;
+                self.seen = true;
+            }
+            event => return Some(event),
+        }
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::state::{EventStreamState, EventStreamStatePart as _};
@@ -27,6 +68,7 @@ mod tests {
         events.extend(state.view_offset.replicate());
         events.extend(state.workspace_switch.replicate());
         events.extend(state.desktop_obscured.replicate());
+        events.extend(state.lock_keys.replicate());
         events
             .iter()
             .map(|event| serde_json::to_string(event).unwrap())
@@ -80,6 +122,25 @@ mod tests {
                 r#"{"DesktopObscured":{"output":"DP-1","obscured":true}}"#,
                 r#"{"DesktopObscured":{"output":"HDMI-A-1","obscured":true}}"#,
             ]
+        );
+    }
+
+    #[test]
+    fn lock_keys_replay_once_seen() {
+        let mut state = EventStreamState::default();
+        state.apply(Event::KeyboardLockKeysChanged {
+            caps_lock: true,
+            num_lock: false,
+        });
+        state.apply(Event::KeyboardLockKeysChanged {
+            caps_lock: true,
+            num_lock: true,
+        });
+        // stateless: nothing to replay
+        state.apply(Event::OutputsChanged {});
+        assert_eq!(
+            replay(&state),
+            [r#"{"KeyboardLockKeysChanged":{"caps_lock":true,"num_lock":true}}"#]
         );
     }
 }

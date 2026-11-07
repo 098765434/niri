@@ -166,6 +166,8 @@ Stock niri has none of them; a client asks [`Features`](ipc/features.md) first.
 | IPC request | `Features` | — |
 | IPC event | `OverviewProgress`, `ViewOffsetChanged`, `WorkspaceSwitchProgress` | `overview-progress`, `view-offset`, `workspace-switch-progress` |
 | IPC event | `DesktopObscured` | `desktop-obscured 1` |
+| IPC event | `KeyboardLockKeysChanged` | `lock-keys 1` |
+| IPC event | `OutputsChanged` | `outputs-changed 1` |
 | IPC field | `Window.is_fullscreen` | `window-fullscreen 1` |
 | IPC field | `Output.hdr_supported`, `hdr_enabled`, `sdr_brightness`, `peak_luminance` | `hdr 1` |
 | IPC action | `MoveColumnToIndex { window_id }` | `move-column-to-index-window-id 1` |

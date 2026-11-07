@@ -835,6 +835,7 @@ impl State {
         self.refresh_ipc_outputs();
         self.ipc_refresh_layout();
         self.ipc_refresh_keyboard_layout_index();
+        self.ipc_refresh_lock_keys();
 
         // Needs to be called after updating the keyboard focus.
         #[cfg(feature = "dbus")]
@@ -1965,6 +1966,7 @@ impl State {
 
         let new_config = self.backend.ipc_outputs().lock().unwrap().clone();
         self.niri.output_management_state.notify_changes(new_config);
+        self.ipc_outputs_changed();
     }
 
     pub fn open_screenshot_ui(&mut self, show_pointer: bool, path: Option<String>) {

@@ -38,6 +38,8 @@ use crate::niri::State;
 use crate::utils::{version, with_toplevel_role};
 use crate::window::Mapped;
 
+mod fork;
+
 // If an event stream client fails to read events fast enough that we accumulate more than this
 // number in our buffer, we drop that event stream client.
 const EVENT_STREAM_BUFFER_SIZE: usize = 64;

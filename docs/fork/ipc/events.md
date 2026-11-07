@@ -15,6 +15,8 @@ The original spec, with the reasoning, is [design/gesture-ipc.md](../design/gest
 | `ViewOffsetChanged` | `output: String`, `view_pos: f64`, `active_column_idx: usize` | focused output | `view_pos` moves by 1 logical px or more, or the active column or the focused output changes |
 | `WorkspaceSwitchProgress` | `output: String`, `workspace_idx: f64`, `active_workspace_idx: usize` | focused output | `workspace_idx` moves by 0.004 or more (about 250 steps per workspace), or the active workspace or the focused output changes |
 | `DesktopObscured` | `output: String`, `obscured: bool` | every output | `obscured` changes on that output |
+| `KeyboardLockKeysChanged` | `caps_lock: bool`, `num_lock: bool` | the seat's keyboard | Caps Lock or Num Lock turns on or off |
+| `OutputsChanged` | none | global | the answer to `Outputs` was rebuilt: an output connected or went away, or a mode, scale, position, HDR or SDR brightness changed |
 
 As JSON, one event per line:
 
@@ -23,6 +25,8 @@ As JSON, one event per line:
 {"ViewOffsetChanged":{"output":"eDP-1","view_pos":1264.5,"active_column_idx":2}}
 {"WorkspaceSwitchProgress":{"output":"eDP-1","workspace_idx":1.37,"active_workspace_idx":1}}
 {"DesktopObscured":{"output":"eDP-1","obscured":true}}
+{"KeyboardLockKeysChanged":{"caps_lock":true,"num_lock":false}}
+{"OutputsChanged":{}}
 ```
 
 ### `OverviewProgress`
@@ -72,6 +76,18 @@ windowed fullscreen), and a change sends `WindowOpenedOrChanged`, so a bar can h
 fullscreen window. It's `#[serde(default)]`, so clients and servers built without it still read
 each other. The server reads it before taking the toplevel's lock (`26290100`).
 
+### `KeyboardLockKeysChanged`
+
+The lock-key LEDs of the seat's keyboard (`KeyboardHandle::led_state()`), so a shell can show a
+Caps Lock indicator without polling `/sys/class/leds`. Sent once on connect and then on each
+change; Scroll Lock isn't reported.
+
+### `OutputsChanged`
+
+A prompt to ask `Outputs` again. It carries nothing and isn't replicated: a new client asks
+`Outputs` once anyway. Sent at the end of `State::refresh_ipc_outputs`, which runs only when the
+outputs changed (`ipc_outputs_changed`), so a resting compositor sends none.
+
 ### Reading the stream
 
 - **New clients get the current values first.** `EventStreamState::replicate()` sends each
@@ -100,6 +116,8 @@ amane's `Gestures`, `Overview` and `Desktop` services read these events; see ama
 | `ViewOffsetChanged` | `ViewOffsetState` | `ipc_refresh_view_offset` | `Layout::active_view_state()` |
 | `WorkspaceSwitchProgress` | `WorkspaceSwitchState` | `ipc_refresh_workspace_switch` | `Layout::active_view_state()` |
 | `DesktopObscured` | `DesktopObscuredState` (per-output map) | `ipc_refresh_desktop_obscured` | `Layout::is_desktop_obscured()` |
+| `KeyboardLockKeysChanged` | `LockKeysState` (`niri-ipc/src/fork.rs`) | `ipc_refresh_lock_keys` (`src/ipc/server/fork.rs`), from `State::refresh` | `KeyboardHandle::led_state()` |
+| `OutputsChanged` | none | `ipc_outputs_changed` (`src/ipc/server/fork.rs`), from `State::refresh_ipc_outputs` | the rebuilt output map |
 
 - The variants are in `niri_ipc::Event` (`niri-ipc/src/lib.rs`) and the parts in
   `niri-ipc/src/state.rs`. The first three parts keep a `seen` flag, so nothing is replicated
@@ -109,7 +127,7 @@ amane's `Gestures`, `Overview` and `Desktop` services read these events; see ama
   quiet when nothing moves.
 - `Layout::active_view_state()` returns an `ActiveViewState` (`src/layout/mod.rs`) for the
   focused monitor's active workspace, or `None` with no outputs.
-- `niri msg event-stream` prints all four (`src/ipc/client.rs`).
+- `niri msg event-stream` prints all six (`src/ipc/client.rs`).
 
 Commits: `759c9c3f` (progress events), `12509ec6` (`DesktopObscured`), `bd862d07` (unplugged
 outputs forgotten). Tests: `niri-ipc/src/fork.rs` and `src/tests/fork_ipc.rs`.
