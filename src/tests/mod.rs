@@ -7,6 +7,7 @@ mod server;
 mod animations;
 mod color_management;
 mod floating;
+mod fork_ipc;
 mod fullscreen;
 mod layer_shell;
 mod remove_output;

@@ -16,3 +16,70 @@ pub struct Feature {
     pub version: u32,
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::state::{EventStreamState, EventStreamStatePart as _};
+    use crate::Event;
+
+    /// The fork's parts of the state, as a new event-stream client receives them.
+    fn replay(state: &EventStreamState) -> Vec<String> {
+        let mut events = state.overview_progress.replicate();
+        events.extend(state.view_offset.replicate());
+        events.extend(state.workspace_switch.replicate());
+        events.extend(state.desktop_obscured.replicate());
+        events
+            .iter()
+            .map(|event| serde_json::to_string(event).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn progress_events_replay_their_last_value() {
+        let mut state = EventStreamState::default();
+        assert!(
+            replay(&state).is_empty(),
+            "nothing is replayed before it is seen"
+        );
+
+        for progress in [0.25, 0.5] {
+            state.apply(Event::OverviewProgress { progress });
+        }
+        state.apply(Event::ViewOffsetChanged {
+            output: "DP-1".into(),
+            view_pos: 120.0,
+            active_column_idx: 2,
+        });
+        state.apply(Event::WorkspaceSwitchProgress {
+            output: "DP-1".into(),
+            workspace_idx: 1.5,
+            active_workspace_idx: 1,
+        });
+
+        assert_eq!(
+            replay(&state),
+            [
+                r#"{"OverviewProgress":{"progress":0.5}}"#,
+                r#"{"ViewOffsetChanged":{"output":"DP-1","view_pos":120.0,"active_column_idx":2}}"#,
+                r#"{"WorkspaceSwitchProgress":{"output":"DP-1","workspace_idx":1.5,"active_workspace_idx":1}}"#,
+            ]
+        );
+    }
+
+    #[test]
+    fn desktop_obscured_replays_every_output_in_name_order() {
+        let mut state = EventStreamState::default();
+        for (output, obscured) in [("HDMI-A-1", false), ("DP-1", true), ("HDMI-A-1", true)] {
+            state.apply(Event::DesktopObscured {
+                output: output.into(),
+                obscured,
+            });
+        }
+        assert_eq!(
+            replay(&state),
+            [
+                r#"{"DesktopObscured":{"output":"DP-1","obscured":true}}"#,
+                r#"{"DesktopObscured":{"output":"HDMI-A-1","obscured":true}}"#,
+            ]
+        );
+    }
+}

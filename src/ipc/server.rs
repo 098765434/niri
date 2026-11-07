@@ -71,6 +71,11 @@ struct EventStreamSender {
 }
 
 impl IpcServer {
+    #[cfg(test)]
+    pub(crate) fn event_stream_state(&self) -> &Rc<RefCell<EventStreamState>> {
+        &self.event_stream_state
+    }
+
     pub fn start(
         event_loop: &LoopHandle<'static, State>,
         wayland_socket_name: Option<&OsStr>,
@@ -903,6 +908,11 @@ impl State {
 
         let mut state = server.event_stream_state.borrow_mut();
         let state = &mut state.desktop_obscured;
+
+        // Forget unplugged outputs, so new clients aren't told about them and one that comes
+        // back under the same name gets an event.
+        let names: HashSet<String> = self.niri.global_space.outputs().map(|o| o.name()).collect();
+        state.outputs.retain(|name, _| names.contains(name));
 
         let mut events = Vec::new();
         for output in self.niri.global_space.outputs() {

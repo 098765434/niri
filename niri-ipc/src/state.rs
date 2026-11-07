@@ -426,8 +426,10 @@ impl EventStreamStatePart for WorkspaceSwitchState {
 
 impl EventStreamStatePart for DesktopObscuredState {
     fn replicate(&self) -> Vec<Event> {
-        self.outputs
-            .iter()
+        let mut outputs: Vec<_> = self.outputs.iter().collect();
+        outputs.sort_unstable_by_key(|(output, _)| *output);
+        outputs
+            .into_iter()
             .map(|(output, obscured)| Event::DesktopObscured {
                 output: output.clone(),
                 obscured: *obscured,
