@@ -24,7 +24,7 @@ should draw its labels normally there. amane's vibrant layer does all of this; s
 
 ### Why
 
-Apple's labels on a material are *vibrant*: they're blended with the frosted backdrop under them
+Labels on a material can be *vibrant*: they're blended with the frosted backdrop under them
 (plus-lighter in dark, plus-darker in light), so they take on its colour. A client can't do this
 itself, because it never sees what's behind its surface. Translucent label colours come close,
 since the backdrop shows through them, but they only fade towards it. They don't brighten or
