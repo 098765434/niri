@@ -49,6 +49,7 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
         Msg::RequestError => Request::ReturnError,
         Msg::OverviewState => Request::OverviewState,
         Msg::Casts => Request::Casts,
+        Msg::Features => Request::Features,
     };
 
     let mut socket = Socket::connect().context("error connecting to the niri socket")?;
@@ -576,6 +577,7 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                 println!();
             }
         }
+        Msg::Features => crate::ipc::features::print(response, json)?,
     }
 
     Ok(())

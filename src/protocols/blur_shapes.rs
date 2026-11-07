@@ -15,7 +15,7 @@ use super::raw::blur_shapes::v1::server::niri_blur_shapes_manager_v1::{
 };
 use super::raw::blur_shapes::v1::server::niri_blur_shapes_v1::{self, NiriBlurShapesV1};
 
-const VERSION: u32 = 2;
+pub const VERSION: u32 = 2;
 
 /// One rounded rectangle of blur, in surface-local coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]

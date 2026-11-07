@@ -12,7 +12,7 @@ use smithay::wayland::compositor::{with_states, Cacheable, SurfaceData};
 use super::raw::vibrancy::v1::server::niri_vibrancy_manager_v1::{self, NiriVibrancyManagerV1};
 use super::raw::vibrancy::v1::server::niri_vibrancy_v1::{self, NiriVibrancyV1};
 
-const VERSION: u32 = 1;
+pub const VERSION: u32 = 1;
 
 /// How a surface blends with what's drawn behind it.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

@@ -23,7 +23,7 @@ use super::raw::secure_fill::v1::server::niri_secure_fill_target_v1::{
     self, Flags, NiriSecureFillTargetV1, Refusal,
 };
 
-const VERSION: u32 = 1;
+pub const VERSION: u32 = 1;
 
 /// How long a target can be filled after it was taken.
 const LIFETIME: Duration = Duration::from_secs(120);

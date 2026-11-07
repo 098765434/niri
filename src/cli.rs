@@ -109,6 +109,8 @@ pub enum Msg {
     OverviewState,
     /// List screencasts.
     Casts,
+    /// List the features this niri has beyond upstream (fork only).
+    Features,
 }
 
 #[derive(Clone, Debug, clap::ValueEnum)]

@@ -58,8 +58,11 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+mod fork;
 pub mod socket;
 pub mod state;
+
+pub use fork::Feature;
 
 /// Request from client to niri.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -119,6 +122,8 @@ pub enum Request {
     OverviewState,
     /// Request information about screencasts.
     Casts,
+    /// Request the features this compositor has beyond upstream niri (fork only).
+    Features,
 }
 
 /// Reply from niri to client.
@@ -165,6 +170,8 @@ pub enum Response {
     OverviewState(Overview),
     /// Information about screencasts.
     Casts(Vec<Cast>),
+    /// The features this compositor has beyond upstream niri.
+    Features(Vec<Feature>),
 }
 
 /// Overview information.
