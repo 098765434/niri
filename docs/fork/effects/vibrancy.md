@@ -80,4 +80,4 @@ already holds the frosted backdrop, the material's tint and its parent surface.
 ### Commits
 
 - `4c68634c` adds the protocol, with plus-lighter and plus-darker.
-- `ada326f0` makes plus-darker subtract (`FUNC_REVERSE_SUBTRACT`), as Apple's does.
+- `ada326f0` makes plus-darker subtract (`FUNC_REVERSE_SUBTRACT`), as its formula says.
