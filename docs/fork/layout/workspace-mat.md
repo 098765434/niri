@@ -90,19 +90,29 @@ Design choices made with the user:
 The mat is purely visual: it only reads geometry the scrolling layout already computes each
 frame, and stores no layout state. It has no input region and no IPC.
 
-```
-src/layout/monitor.rs                 src/layout/workspace.rs          src/layout/scrolling.rs
-─────────────────────                 ───────────────────────          ───────────────────────
-render_workspaces()
-  mat_alpha = 1 - overview progress ─▶ render_scrolling(.., mat_alpha) ─▶ ScrollingSpace::render
-                                                                         ├─ closing windows
-                                                                         ├─ columns / tiles
-                                                                         └─ Mat::render  (pushed last = bottom)
-ScrollingSpace::update_render_elements ─▶ mat_geometry() ─▶ Mat (cells, slab, ends)
-
-src/layout/mat.rs
-  Mat::render ── solid:  SolidColorRenderElement per cell, BorderRenderElement gradient per soft end
-              └─ glass:  Xray::render with RenderParams { geometry: cell, clip: slab, material }
+```mermaid
+flowchart LR
+    subgraph monitor["src/layout/monitor.rs"]
+        rw["render_workspaces()<br/>mat_alpha = 1 - overview progress"]
+    end
+    subgraph workspace["src/layout/workspace.rs"]
+        rs["render_scrolling(.., mat_alpha)"]
+    end
+    subgraph scrolling["src/layout/scrolling.rs"]
+        render["ScrollingSpace::render<br/>closing windows, then columns / tiles,<br/>then Mat::render (pushed last = bottom)"]
+        upd["ScrollingSpace::update_render_elements"]
+    end
+    subgraph mat["src/layout/mat.rs"]
+        geom["mat_geometry()"]
+        m["Mat (cells, slab, ends)"]
+        mr["Mat::render"]
+        solid["solid: SolidColorRenderElement per cell,<br/>BorderRenderElement gradient per soft end"]
+        glass["glass: Xray::render with<br/>RenderParams { geometry: cell, clip: slab, material }"]
+    end
+    rw --> rs --> render --> mr
+    upd --> geom --> m
+    mr --> solid
+    mr --> glass
 ```
 
 #### 2.1 Geometry — `fn mat_geometry` in `src/layout/mat.rs`

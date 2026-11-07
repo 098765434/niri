@@ -64,16 +64,29 @@ Design choices made with the user:
 The gesture state lives in the layout, next to `interactive_move`; input only routes events
 and performs side effects the layout can't (sending `close` to a client, timers).
 
-```
-src/input/mod.rs                     src/layout/window_swipe.rs          src/layout/tile.rs
-────────────────                     ──────────────────────────          ──────────────────
-on_gesture_swipe_begin  ── Mod held? ─▶ Layout::window_swipe_begin()
-on_gesture_swipe_update ─────────────▶ Layout::window_swipe_update()  ──▶ Tile::swipe_offset
-                                        ├─ vertical:   follow / maximize    Tile::swipe_alpha
-                                        └─ horizontal: step_window_width
-on_gesture_swipe_end    ─────────────▶ Layout::window_swipe_end() ─▶ Some(window) = close
-  close_swiped_window(): send_close + 1 s timer ─▶ window_swipe_close_timed_out()
-on_keyboard (Mod released) ──────────▶ Layout::window_swipe_cancel()
+```mermaid
+flowchart LR
+    subgraph input["src/input/mod.rs"]
+        begin["on_gesture_swipe_begin"]
+        update["on_gesture_swipe_update"]
+        endd["on_gesture_swipe_end"]
+        key["on_keyboard (Mod released)"]
+    end
+    subgraph swipe["src/layout/window_swipe.rs"]
+        wbegin["Layout::window_swipe_begin()"]
+        wupdate["Layout::window_swipe_update()<br/>vertical: follow / maximize<br/>horizontal: step_window_width"]
+        wend["Layout::window_swipe_end()"]
+        wcancel["Layout::window_swipe_cancel()"]
+        close["close_swiped_window(): send_close + 1 s timer"]
+        timeout["window_swipe_close_timed_out()"]
+    end
+    subgraph tile["src/layout/tile.rs"]
+        offset["Tile::swipe_offset, Tile::swipe_alpha"]
+    end
+    begin -->|"Mod held?"| wbegin
+    update --> wupdate --> offset
+    endd --> wend -->|"Some(window) = close"| close --> timeout
+    key --> wcancel
 ```
 
 #### 2.1 Activation — `src/input/mod.rs`

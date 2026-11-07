@@ -2,7 +2,7 @@
 //!
 //! The mat fills the gaps between and around the columns, so they read as one surface in normal
 //! mode, and fades out as the overview opens. It only reads the geometry the scrolling layout
-//! already computes each frame. See `docs/fork/workspace-mat.md`.
+//! already computes each frame. See `docs/fork/layout/workspace-mat.md`.
 
 use niri_config::{Color, CornerRadius, GradientInterpolation, MatColumnFill, MatEnds};
 use smithay::backend::renderer::element::Kind;
