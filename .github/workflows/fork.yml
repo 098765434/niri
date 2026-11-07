@@ -41,3 +41,23 @@ jobs:
       # the runner doesn't have, and the flake's own build skips them too
       - name: test
         run: nix develop -c cargo test --all --exclude niri-visual-tests --locked -- --skip=::egl
+
+  # no Apple platform terms on the lines the fork added (amane-shell's
+  # scripts/lint-terms, against the release the fork is on)
+  terms:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          show-progress: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/checkout@v6
+        with:
+          show-progress: false
+          repository: 098765434/amane-shell
+          path: .amane-shell
+
+      - name: lint-terms
+        run: .amane-shell/scripts/lint-terms --diff v26.04
