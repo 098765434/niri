@@ -88,8 +88,8 @@ void main() {
             - edge_distance(p - vec2(0.0, 1.0), half_size, corner_radius));
     vec2 normal = length(grad) > 0.0001 ? normalize(grad) : vec2(0.0);
 
-    // At the lip the glass bends what's beside it in over the edge, as Apple's
-    // does: the rim continues the backdrop around the shape. The capture reaches
+    // At the lip the glass bends what's beside it in over the edge: the rim
+    // continues the backdrop around the shape. The capture reaches
     // `refraction` past the shape for it (render_shapes grows its bounds).
     vec2 offset = normal * lip * glass_shape.x;
     vec4 color;

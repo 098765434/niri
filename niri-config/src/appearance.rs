@@ -1131,7 +1131,7 @@ pub struct Material {
     #[knuffel(child, unwrap(argument))]
     pub rim: Option<FloatOrInt<0, 1>>,
     /// How bright the soft glow over the bevel's lit sides is, 0 to 1. A quarter of `rim`
-    /// unless set; 0 leaves only the rim's hairline, as Apple's glass has.
+    /// unless set; 0 leaves only the rim's hairline.
     #[knuffel(child, unwrap(argument))]
     pub glow: Option<FloatOrInt<0, 1>>,
     /// Where the light comes from, in degrees clockwise from the right (225 is the top left).
