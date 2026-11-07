@@ -21,7 +21,7 @@ What the shapes' captures hold on the GPU, and when they are dropped, is in
 
 `ext-background-effect-v1` describes blur as a region of integer rectangles: no
 rounded corners and no fade. A shell with many rounded pieces of glass (a
-control centre, cards that swell open) gets square, all-or-nothing blur. This
+a quick settings panel, cards that swell open) gets square, all-or-nothing blur. This
 fork adds a private protocol in which the client describes its blur as rounded
 rectangles, each with its own opacity and look.
 
