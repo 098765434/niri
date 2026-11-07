@@ -1170,7 +1170,7 @@ pub struct Material {
     #[knuffel(child, unwrap(argument))]
     pub report_backdrop: Option<bool>,
     /// Blur passes for the backdrop behind this material, in place of `blur {}`'s: more is
-    /// a wider blur. Big glass frosts more than small, as Apple's does.
+    /// a wider blur, so big glass can frost more than small.
     #[knuffel(child, unwrap(argument))]
     pub blur_passes: Option<u8>,
     /// Blur offset for the backdrop behind this material, in place of `blur {}`'s.
