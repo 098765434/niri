@@ -5,7 +5,7 @@ Status: implemented in `58528c07`, with soft ends inside the end columns (and fo
 
 A sharp-cornered backing painted behind the scrolling layout's windows, so the gaps between and
 around windows read as one clean surface in normal mode while the wallpaper stays visible
-wherever there are no windows. The mat is a solid colour by default, or optionally liquid glass.
+wherever there are no windows. The mat is a solid colour by default, or optionally glass.
 It fades out as the overview opens, which reveals the same gaps over the wallpaper.
 
 [Usage](#usage) is the user-facing part. The rest is the design spec.
