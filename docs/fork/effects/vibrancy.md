@@ -15,7 +15,7 @@ every client. A client that wants vibrant labels on a material:
    `set_mode(plus_lighter)` for dark appearance or `set_mode(plus_darker)` for light, and
    commits the subsurface.
 
-For `plus_darker`, the subsurface holds how much to darken, not the colour: a grey `c` at alpha
+For `plus_darker`, the subsurface holds how much to darken, not the color: a grey `c` at alpha
 `a` is drawn as white, `1 − c`, at alpha `a`. Without the global (stock niri) there is no blend, so a client
 should draw its labels normally there. amane's vibrant layer does all of this; see amane's
 [fork docs](https://github.com/098765434/amane/blob/ocbk/docs/fork/README.md).
@@ -25,8 +25,8 @@ should draw its labels normally there. amane's vibrant layer does all of this; s
 ### Why
 
 Labels on a material can be *vibrant*: they're blended with the frosted backdrop under them
-(plus-lighter in dark, plus-darker in light), so they take on its colour. A client can't do this
-itself, because it never sees what's behind its surface. Translucent label colours come close,
+(plus-lighter in dark, plus-darker in light), so they take on its color. A client can't do this
+itself, because it never sees what's behind its surface. Translucent label colors come close,
 since the backdrop shows through them, but they only fade towards it. They don't brighten or
 darken it.
 

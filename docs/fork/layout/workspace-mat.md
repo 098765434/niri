@@ -5,7 +5,7 @@ Status: implemented in `7e622e2d`, with soft ends inside the end columns (and fo
 
 A sharp-cornered backing painted behind the scrolling layout's windows, so the gaps between and
 around windows read as one clean surface in normal mode while the wallpaper stays visible
-wherever there are no windows. The mat is a solid colour by default, or optionally glass.
+wherever there are no windows. The mat is a solid color by default, or optionally glass.
 It fades out as the overview opens, which reveals the same gaps over the wallpaper.
 
 [Usage](#usage) is the user-facing part. The rest is the design spec.
@@ -36,7 +36,7 @@ layout {
 }
 ```
 
-- `color`: the mat colour. With `material`, it is the glass tint instead, for example `"#000000c0"` for dark smoked glass.
+- `color`: the mat color. With `material`, it is the glass tint instead, for example `"#000000c0"` for dark smoked glass.
 - `overview`: `"fade"` (the default) fades the mat out as the overview opens, `"keep"` keeps it.
 - `column-fill`: how far down the mat goes under a column whose windows don't fill the height. `"full"` (the default) covers the full height under every column. `"tiles"` stops one gap below the column's last window, so the wallpaper shows under short columns. A column whose windows fill the working area still reaches the bottom of the screen.
 - `ends`: how the mat ends at the outermost columns. `"hard"` (the default) is a sharp edge one gap past them. `"soft"` fades the mat out over the outermost columns' last `soft-end-length` logical pixels, so it is fully transparent by their outer edges.
@@ -159,8 +159,8 @@ buffers. With `column-fill "full"` there is one buffer.
 
 **Solid mat (default).** One `SolidColorRenderElement` per cell. Each soft end is a
 `BorderRenderElement` with `border_width 0.` (a filled rectangle, as `tile.rs` already uses
-during the fullscreen animation). It runs a horizontal gradient from the mat colour to the same
-colour at alpha 0 at the slab's outer edge.
+during the fullscreen animation). It runs a horizontal gradient from the mat color to the same
+color at alpha 0 at the slab's outer edge.
 
 **Glass mat (`material`).** Behind the mat there is only the wallpaper and the workspace
 background, which is exactly what this fork's xray path already holds blurred once per
@@ -179,7 +179,7 @@ pushes `Xray::render` areas, one per cell, from `ctx.xray`, each with:
 The `XrayPos` for the workspace is already passed down to `ScrollingSpace::render`, so the
 overview zoom and workspace offsets come for free. If the glass shader failed to compile,
 `Xray::render` already falls back to plain blur. If there is no xray context, the mat
-falls back to solid colour.
+falls back to solid color.
 
 #### 2.4 Config — `niri-config/src/layout.rs`
 

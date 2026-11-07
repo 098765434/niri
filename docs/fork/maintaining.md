@@ -146,9 +146,9 @@ line changes. What each one has today:
 For each: port the `GlobalDispatch` and `Dispatch` impls to the new traits, port the
 `delegate_*!` macro the same way upstream's protocols in `src/protocols/` are ported in that
 tag (follow one of theirs, such as `ext_workspace.rs`), and keep the `*Handler` trait that
-`State` implements unchanged. Colour management is the largest, and its `send_pending_information`
+`State` implements unchanged. Color management is the largest, and its `send_pending_information`
 (replies that destroy the object they're on, sent after dispatch) is the part to check against
-the new API's object lifetimes. Then run the protocol tests in `src/tests/` (colour management
+the new API's object lifetimes. Then run the protocol tests in `src/tests/` (color management
 has its own).
 
 ## What amane-shell relies on
@@ -194,7 +194,7 @@ or parses exists in `niri-ipc` here.
 | Gaps | maybe: plain config, stock behaviour unchanged when unset |
 | Workspace mat | maybe: plain config, no protocol |
 | Desktop layer | maybe: plain config plus one IPC event |
-| HDR | maybe in parts: the colour-management protocol and conversion are generic; the composition keeps the fork's gamma-2.2 blending |
+| HDR | maybe in parts: the color-management protocol and conversion are generic; the composition keeps the fork's gamma-2.2 blending |
 | `Window.is_fullscreen` | likely: one IPC field, defaulted for older clients |
 | Secure fill | no as-is: private protocol, for one password manager's fill |
 | `Features` | no: it lists this fork's features |

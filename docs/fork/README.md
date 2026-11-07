@@ -18,9 +18,9 @@ log: [maintaining.md](maintaining.md).
 | Workspace mat | a backing behind the scrolling layout that fills the gaps | `layout { mat { … } }` | [layout/workspace-mat.md](layout/workspace-mat.md) | implemented, `7e622e2d`, `3696f762`, `9165052c` |
 | Gaps | gaps between workspaces, and between windows in the overview | `layout { workspace-gap }`, `overview { workspace-gap window-gap }` | [layout/gaps.md](layout/gaps.md) | implemented, `9e57324e`, `f4e61d28`, `193f7663` |
 | Desktop layer | a background layer that stays still on the wallpaper as the desktop | `layer-rule { desktop true }` | [layout/desktop-layer.md](layout/desktop-layer.md) | implemented, `12509ec6` |
-| HDR | HDR10 output with the SDR desktop unchanged, and colour-managed HDR surfaces | `output { hdr; sdr-brightness }`, `niri msg output … hdr`, protocol `wp-color-management-v1` | [display/hdr.md](display/hdr.md) | implemented, `ae549528`, `ddd3381d` |
+| HDR | HDR10 output with the SDR desktop unchanged, and color-managed HDR surfaces | `output { hdr; sdr-brightness }`, `niri msg output … hdr`, protocol `wp-color-management-v1` | [display/hdr.md](display/hdr.md) | implemented, `ae549528`, `ddd3381d` |
 | Mod swipe | Mod-held three-finger swipes close, maximize and resize the focused window | `gestures { mod-swipe { off } }` | [gestures/mod-swipe.md](gestures/mod-swipe.md) | implemented, `823b718a` |
-| IPC events | per-frame gesture progress, when the desktop is obscured, and whether a window is fullscreen | `OverviewProgress`, `ViewOffsetChanged`, `WorkspaceSwitchProgress`, `DesktopObscured`, `Window.is_fullscreen` | [ipc/events.md](ipc/events.md) | implemented, `759c9c3f`, `12509ec6`, `26290100` |
+| IPC events | per-frame gesture progress, when the desktop is obscured, whether a window is fullscreen, Caps Lock and Num Lock, and when the outputs changed | `OverviewProgress`, `ViewOffsetChanged`, `WorkspaceSwitchProgress`, `DesktopObscured`, `Window.is_fullscreen`, `KeyboardLockKeysChanged`, `OutputsChanged` | [ipc/events.md](ipc/events.md) | implemented, `759c9c3f`, `12509ec6`, `26290100`, `989d475e` |
 | IPC actions | move a window's column without moving the focus | `MoveColumnToIndex { window_id }`, `niri msg action move-column-to-index --window-id` | [ipc/actions.md](ipc/actions.md) | implemented, `3a984abc` |
 | Features | which of these the running niri has, with each contract's version; stock niri answers with an error | `Request::Features`, `niri msg features` | [ipc/features.md](ipc/features.md) | implemented, `bebe757d` |
 | Secure fill | a password manager fills the focused field only if it's still the one it checked, and learns its owner from the socket | protocol `niri-secure-fill-v1` | [input/secure-fill.md](input/secure-fill.md); `resources/niri-secure-fill-v1.xml` | implemented, `85a7be33` |
@@ -36,7 +36,7 @@ Each feature doc starts with **Usage** (config, protocol or IPC), then **Design 
 - **Layout:** the scrolling layout's surroundings. The [workspace mat](layout/workspace-mat.md)
   fills the gaps, [gaps](layout/gaps.md) sets the space between workspaces and overview windows,
   and the [desktop layer](layout/desktop-layer.md) keeps widgets on the wallpaper.
-- **Display:** [HDR](display/hdr.md), the output in HDR10 and clients' colour described through
+- **Display:** [HDR](display/hdr.md), the output in HDR10 and clients' color described through
   `wp-color-management-v1`.
 - **Gestures:** [Mod swipe](gestures/mod-swipe.md), touchpad swipes on the focused window.
 - **Input:** [Secure fill](input/secure-fill.md), checked password fill for the shell's input method.
@@ -44,8 +44,9 @@ Each feature doc starts with **Usage** (config, protocol or IPC), then **Design 
   sends, and [features](ipc/features.md), how a client tells the fork from stock niri.
 
 The protocol specs are authoritative for the wire format:
-[`niri-blur-shapes-v1.xml`](../../resources/niri-blur-shapes-v1.xml) and
-[`niri-vibrancy-v1.xml`](../../resources/niri-vibrancy-v1.xml).
+[`niri-blur-shapes-v1.xml`](../../resources/niri-blur-shapes-v1.xml),
+[`niri-vibrancy-v1.xml`](../../resources/niri-vibrancy-v1.xml) and
+[`niri-secure-fill-v1.xml`](../../resources/niri-secure-fill-v1.xml).
 
 ## Used by
 

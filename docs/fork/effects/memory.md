@@ -31,7 +31,7 @@ What the fork changed (commit `7874959a`):
   is never built.
 - **An empty background over see-through workspaces isn't rendered.** The background buffer
   holds the non-desktop `Background` layers; with the wallpaper and widgets on the desktop
-  layer it is empty, and when every workspace's background colour is transparent too, drawing
+  layer it is empty, and when every workspace's background color is transparent too, drawing
   it would show nothing. `Xray::render` skips preparing it then. That saves the texture and
   its chains in every target.
 - **A tick per output frame lets go of what isn't used.** `EffectBuffer::tick` counts rendered

@@ -1,6 +1,6 @@
 # HDR
 
-Status: implemented in `ae549528` (HDR10 output) and `ddd3381d` (colour management). Shell
+Status: implemented in `ae549528` (HDR10 output) and `ddd3381d` (color management). Shell
 Settings' Displays page drives it; see amane-shell's
 [displays.md](https://github.com/098765434/amane-shell/blob/main/docs/shell/displays.md).
 
@@ -28,7 +28,7 @@ brightness; the JSON gains `hdr_supported`, `hdr_enabled`, `sdr_brightness` and
 `peak_luminance`.
 
 The desktop looks the same in HDR mode, with SDR white at `sdr-brightness`. Clients that
-describe their colour through `wp-color-management-v1` show more: HDR video and games keep their
+describe their color through `wp-color-management-v1` show more: HDR video and games keep their
 highlights up to the panel's peak. Some clients that do this:
 
 - mpv with `--vo=gpu-next` (`--target-colorspace-hint` follows the output);
@@ -52,7 +52,7 @@ Every element and effect shader in niri (and the fork's glass) works on gamma-2.
 from 0 to 1, blending them as they are. HDR mode keeps that encoding, so nothing else changes:
 the output's elements are rendered, with damage tracking, into a half-float texture
 (`Abgr16161616f`, about 41 MB at 2880×1800) where 1.0 is SDR white, values past it are brighter,
-and negatives are colours outside BT.709 (`render_helpers/hdr.rs`, `HdrBuffer`).
+and negatives are colors outside BT.709 (`render_helpers/hdr.rs`, `HdrBuffer`).
 
 One pass then encodes it onto the 10-bit scanout buffer (`HdrEncodeElement`,
 `shaders/hdr_encode.frag`):
@@ -88,7 +88,7 @@ On resume an HDR output gets its HDR back. If the 10-bit compositor can't be mad
 the properties and makes an 8-bit one. If smithay's atomic commits ever fight these properties,
 the fix is a small smithay patch that carries them in the atomic state.
 
-### Colour management: `wp-color-management-v1`
+### Color management: `wp-color-management-v1`
 
 `src/protocols/color_management.rs`, version 2:
 
@@ -126,7 +126,7 @@ Where a render is going rides on the renderer's EGL context (`render_helpers/col
 `ColorTarget`):
 
 - An HDR output's own render keeps highlights up to the panel's peak over SDR white.
-- Every other render, such as screenshots, screencasts and the colour picker, has a peak of
+- Every other render, such as screenshots, screencasts and the color picker, has a peak of
   1.0. HDR content in a capture is therefore tone-mapped to SDR, never clipped as raw PQ.
 
 Converted surfaces aren't scanned out. Windows drawn offscreen (open, close and resize
