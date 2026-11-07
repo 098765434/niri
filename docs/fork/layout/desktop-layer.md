@@ -1,6 +1,6 @@
 # Spec: desktop layers
 
-Status: implemented in `871b5ee5` · Target: niri fork + amane-shell's desktop widgets · Scope: a
+Status: implemented in `12509ec6` · Target: niri fork + amane-shell's desktop widgets · Scope: a
 layer rule that puts a background layer on the backdrop as the desktop, and an IPC event that tells
 it when it can't be seen.
 

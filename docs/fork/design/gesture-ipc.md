@@ -1,6 +1,6 @@
 # Spec: Live gesture-progress IPC events for a niri fork
 
-Status: implemented in `59fe93e4` · Target: niri fork + Amane shell client · Scope: expose per-frame
+Status: implemented in `759c9c3f` · Target: niri fork + Amane shell client · Scope: expose per-frame
 gesture progress over the niri IPC event stream so an external bar can animate in sync.
 
 This is the original spec, kept as design history. The reference for the events as built is

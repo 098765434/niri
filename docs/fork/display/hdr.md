@@ -1,6 +1,6 @@
 # HDR
 
-Status: implemented in `b322b674` (HDR10 output) and `cf559b95` (colour management). Shell
+Status: implemented in `ae549528` (HDR10 output) and `ddd3381d` (colour management). Shell
 Settings' Displays page drives it; see amane-shell's
 [displays.md](https://github.com/098765434/amane-shell/blob/main/docs/shell/displays.md).
 

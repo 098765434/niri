@@ -1,6 +1,6 @@
 # Vibrancy
 
-Status: implemented in `4c68634c`, with plus-darker reworked to subtract in `ada326f0`. The client side
+Status: implemented in `14ed7262`, with plus-darker reworked to subtract in `9cdf1c8d`. The client side
 is amane's vibrant layer.
 
 ## Usage
@@ -79,5 +79,5 @@ already holds the frosted backdrop, the material's tint and its parent surface.
 
 ### Commits
 
-- `4c68634c` adds the protocol, with plus-lighter and plus-darker.
-- `ada326f0` makes plus-darker subtract (`FUNC_REVERSE_SUBTRACT`), as its formula says.
+- `14ed7262` adds the protocol, with plus-lighter and plus-darker.
+- `9cdf1c8d` makes plus-darker subtract (`FUNC_REVERSE_SUBTRACT`), as its formula says.

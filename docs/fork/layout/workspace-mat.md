@@ -1,7 +1,7 @@
 # Workspace mat
 
-Status: implemented in `58528c07`, with soft ends inside the end columns (and for glass) in
-`f297cd5e` and `behind-bars` in `74d6c36d`. The spec was drafted in `148ff076`.
+Status: implemented in `7e622e2d`, with soft ends inside the end columns (and for glass) in
+`3696f762` and `behind-bars` in `9165052c`.
 
 A sharp-cornered backing painted behind the scrolling layout's windows, so the gaps between and
 around windows read as one clean surface in normal mode while the wallpaper stays visible

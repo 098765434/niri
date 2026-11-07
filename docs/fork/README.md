@@ -1,7 +1,7 @@
 # niri fork docs
 
 A fork of [niri](https://github.com/YaLTeR/niri), the scrollable-tiling Wayland compositor, run
-under the [amane-shell](https://github.com/098765434/amane-shell) bar. It adds liquid-glass
+under the [amane-shell](https://github.com/098765434/amane-shell) bar. It adds glass
 effects, layout extras, a gesture and IPC for the shell; everything else is stock upstream.
 
 Branch `ocbk`, based on the upstream release `v26.04`. Rebasing, branches and the full commit
@@ -11,18 +11,19 @@ log: [maintaining.md](maintaining.md).
 
 | Feature | Summary | Config / IPC surface | Doc | Status |
 |---|---|---|---|---|
-| Materials | named liquid-glass looks drawn over the blur | `materials { material "…" { … } }`; `background-effect { material "…" }` in rules | [effects/materials.md](effects/materials.md) | implemented, `454d9751`, `3cde7327`, `a1a78bd0`, `78620a8c`, `7bef7001` |
-| Blur shapes | rounded, fading blur shapes, each with a material and tint | protocol `niri-blur-shapes-v1` | [effects/blur-shapes.md](effects/blur-shapes.md) | implemented, `13d945b5`, `74b623a7`, `3cde7327` |
-| Vibrancy | a subsurface blended with the backdrop (plus-lighter / plus-darker) | protocol `niri-vibrancy-v1` | [effects/vibrancy.md](effects/vibrancy.md) | implemented, `4c68634c`, `ada326f0` |
-| Effects memory | what xray buffers, blur chains and shape captures hold, built and freed when used | — | [effects/memory.md](effects/memory.md) | implemented, `0b2ab4e5` |
-| Workspace mat | a backing behind the scrolling layout that fills the gaps | `layout { mat { … } }` | [layout/workspace-mat.md](layout/workspace-mat.md) | implemented, `58528c07`, `f297cd5e`, `74d6c36d` |
-| Gaps | gaps between workspaces, and between windows in the overview | `layout { workspace-gap }`, `overview { workspace-gap window-gap }` | [layout/gaps.md](layout/gaps.md) | implemented, `dab83f82`, `34c91b6b`, `e0139bac` |
-| Desktop layer | a background layer that stays still on the wallpaper as the desktop | `layer-rule { desktop true }` | [layout/desktop-layer.md](layout/desktop-layer.md) | implemented, `871b5ee5` |
-| HDR | HDR10 output with the SDR desktop unchanged, and colour-managed HDR surfaces | `output { hdr; sdr-brightness }`, `niri msg output … hdr`, protocol `wp-color-management-v1` | [display/hdr.md](display/hdr.md) | implemented, `b322b674`, `cf559b95`, `b0ffbd0d` |
-| Mod swipe | Mod-held three-finger swipes close, maximize and resize the focused window | `gestures { mod-swipe { off } }` | [gestures/mod-swipe.md](gestures/mod-swipe.md) | implemented, `f4367f88`, `4177c74f` |
-| IPC events | per-frame gesture progress, when the desktop is obscured, and whether a window is fullscreen | `OverviewProgress`, `ViewOffsetChanged`, `WorkspaceSwitchProgress`, `DesktopObscured`, `Window.is_fullscreen` | [ipc/events.md](ipc/events.md) | implemented, `59fe93e4`, `9d5bf9fc`, `871b5ee5`, `b25a5a8d`, `c7a113d6` |
-| IPC actions | move a window's column without moving the focus | `MoveColumnToIndex { window_id }`, `niri msg action move-column-to-index --window-id` | [ipc/actions.md](ipc/actions.md) | implemented, `36f2cce3` |
-| Secure fill | a password manager fills the focused field only if it's still the one it checked, and learns its owner from the socket | protocol `niri-secure-fill-v1` | [input/secure-fill.md](input/secure-fill.md); `resources/niri-secure-fill-v1.xml` | implemented, `16384e00` |
+| Materials | named glass looks drawn over the blur | `materials { material "…" { … } }`; `background-effect { material "…" }` in rules | [effects/materials.md](effects/materials.md) | implemented, `e843c4be`, `379f1071`, `c0c39971`, `bf313b9b`, `5f986fdf` |
+| Blur shapes | rounded, fading blur shapes, each with a material and tint | protocol `niri-blur-shapes-v1` | [effects/blur-shapes.md](effects/blur-shapes.md) | implemented, `113728ce`, `39904a0b`, `379f1071` |
+| Vibrancy | a subsurface blended with the backdrop (plus-lighter / plus-darker) | protocol `niri-vibrancy-v1` | [effects/vibrancy.md](effects/vibrancy.md) | implemented, `14ed7262`, `9cdf1c8d` |
+| Effects memory | what xray buffers, blur chains and shape captures hold, built and freed when used | — | [effects/memory.md](effects/memory.md) | implemented, `7874959a` |
+| Workspace mat | a backing behind the scrolling layout that fills the gaps | `layout { mat { … } }` | [layout/workspace-mat.md](layout/workspace-mat.md) | implemented, `7e622e2d`, `3696f762`, `9165052c` |
+| Gaps | gaps between workspaces, and between windows in the overview | `layout { workspace-gap }`, `overview { workspace-gap window-gap }` | [layout/gaps.md](layout/gaps.md) | implemented, `9e57324e`, `f4e61d28`, `193f7663` |
+| Desktop layer | a background layer that stays still on the wallpaper as the desktop | `layer-rule { desktop true }` | [layout/desktop-layer.md](layout/desktop-layer.md) | implemented, `12509ec6` |
+| HDR | HDR10 output with the SDR desktop unchanged, and colour-managed HDR surfaces | `output { hdr; sdr-brightness }`, `niri msg output … hdr`, protocol `wp-color-management-v1` | [display/hdr.md](display/hdr.md) | implemented, `ae549528`, `ddd3381d` |
+| Mod swipe | Mod-held three-finger swipes close, maximize and resize the focused window | `gestures { mod-swipe { off } }` | [gestures/mod-swipe.md](gestures/mod-swipe.md) | implemented, `823b718a` |
+| IPC events | per-frame gesture progress, when the desktop is obscured, and whether a window is fullscreen | `OverviewProgress`, `ViewOffsetChanged`, `WorkspaceSwitchProgress`, `DesktopObscured`, `Window.is_fullscreen` | [ipc/events.md](ipc/events.md) | implemented, `759c9c3f`, `12509ec6`, `26290100` |
+| IPC actions | move a window's column without moving the focus | `MoveColumnToIndex { window_id }`, `niri msg action move-column-to-index --window-id` | [ipc/actions.md](ipc/actions.md) | implemented, `3a984abc` |
+| Features | which of these the running niri has, with each contract's version; stock niri answers with an error | `Request::Features`, `niri msg features` | [ipc/features.md](ipc/features.md) | implemented, `bebe757d` |
+| Secure fill | a password manager fills the focused field only if it's still the one it checked, and learns its owner from the socket | protocol `niri-secure-fill-v1` | [input/secure-fill.md](input/secure-fill.md); `resources/niri-secure-fill-v1.xml` | implemented, `85a7be33` |
 
 Each feature doc starts with **Usage** (config, protocol or IPC), then **Design / internals**.
 
@@ -39,8 +40,8 @@ Each feature doc starts with **Usage** (config, protocol or IPC), then **Design 
   `wp-color-management-v1`.
 - **Gestures:** [Mod swipe](gestures/mod-swipe.md), touchpad swipes on the focused window.
 - **Input:** [Secure fill](input/secure-fill.md), checked password fill for the shell's input method.
-- **IPC:** [events](ipc/events.md) a bar animates from, and [actions](ipc/actions.md) a dock
-  sends.
+- **IPC:** [events](ipc/events.md) a bar animates from, [actions](ipc/actions.md) a dock
+  sends, and [features](ipc/features.md), how a client tells the fork from stock niri.
 
 The protocol specs are authoritative for the wire format:
 [`niri-blur-shapes-v1.xml`](../../resources/niri-blur-shapes-v1.xml) and

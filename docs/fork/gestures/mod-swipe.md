@@ -1,6 +1,6 @@
 # Spec: Mod-held three-finger window swipes for a niri fork
 
-Status: implemented in `f4367f88`, with full width past the widest preset in `4177c74f` · Scope: while Mod is held, three-finger touchpad swipes
+Status: implemented in `823b718a`, with full width past the widest preset · Scope: while Mod is held, three-finger touchpad swipes
 act on the focused window instead of scrolling the view or switching workspaces.
 
 [Usage](#usage) is the user-facing part. The rest covers the design and the implementation,

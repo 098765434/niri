@@ -1,8 +1,8 @@
 # Blur shapes (`niri-blur-shapes-v1`)
 
-Status: implemented in `13d945b5` (shapes), `454d9751` (materials), `74b623a7` (one element id
-per shape), `3cde7327` (backdrop readings, protocol version 2), `a1a78bd0` (per-material blurs)
-and `7bef7001` (capture reach). The materials themselves are in [materials.md](materials.md).
+Status: implemented in `113728ce` (shapes), `e843c4be` (materials), `39904a0b` (one element id
+per shape), `379f1071` (backdrop readings, protocol version 2), `c0c39971` (per-material blurs)
+and `5f986fdf` (capture reach). The materials themselves are in [materials.md](materials.md).
 
 ## Usage
 
@@ -10,7 +10,7 @@ This fork offers `niri-blur-shapes-v1`: instead of a region of rectangles, a sur
 niri draws each with antialiased corners at its opacity, so a client with many rounded pieces of glass (such as a quick settings panel) gets blur exactly in their shape that fades with them.
 A surface with blur shapes is treated like one with a blur region: blur is on unless a rule says `blur false`.
 
-A shape can also name a [material](materials.md), a liquid-glass look niri draws over the blurred background.
+A shape can also name a [material](materials.md), a glass look niri draws over the blurred background.
 
 ## Design / internals
 
@@ -21,7 +21,7 @@ What the shapes' captures hold on the GPU, and when they are dropped, is in
 
 `ext-background-effect-v1` describes blur as a region of integer rectangles: no
 rounded corners and no fade. A shell with many rounded pieces of glass (a
-a quick settings panel, cards that swell open) gets square, all-or-nothing blur. This
+quick settings panel, cards that swell open) gets square, all-or-nothing blur. This
 fork adds a private protocol in which the client describes its blur as rounded
 rectangles, each with its own opacity and look.
 
@@ -67,7 +67,7 @@ unless a rule says `blur false`.
   another's glass.
 - Each shape drawn from one capture gets its own element id. A shared id made
   smithay pair instances by geometry, and a frame could keep a stale rectangle
-  of frost (`74b623a7`).
+  of frost (`39904a0b`).
 
 ### Materials
 

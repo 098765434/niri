@@ -70,13 +70,14 @@ Not an event of its own: a field on `Window`, so `niri msg --json windows`, `foc
 and the `WindowOpenedOrChanged` event carry it. It is true while the window is fullscreen (not
 windowed fullscreen), and a change sends `WindowOpenedOrChanged`, so a bar can hide for a
 fullscreen window. It's `#[serde(default)]`, so clients and servers built without it still read
-each other. The server reads it before taking the toplevel's lock (`c7a113d6`).
+each other. The server reads it before taking the toplevel's lock (`26290100`).
 
 ### Reading the stream
 
 - **New clients get the current values first.** `EventStreamState::replicate()` sends each
   event's last value on connect, once it has been sent at least once. `DesktopObscured` is
-  replicated for every output it has been sent for.
+  replicated for every connected output, in name order; an unplugged output is forgotten, and
+  gets an event again when it comes back.
 - **Order.** Within one refresh the events go out in this order: `WorkspacesChanged` and friends,
   window events, `OverviewOpenedOrClosed`, `OverviewProgress`, `ViewOffsetChanged`,
   `WorkspaceSwitchProgress`, `DesktopObscured`.
@@ -110,5 +111,5 @@ amane's `Gestures`, `Overview` and `Desktop` services read these events; see ama
   focused monitor's active workspace, or `None` with no outputs.
 - `niri msg event-stream` prints all four (`src/ipc/client.rs`).
 
-Commits: `59fe93e4` (progress events), `9d5bf9fc` (build fix for a duplicate
-`active_column_idx`), `871b5ee5` (`DesktopObscured`).
+Commits: `759c9c3f` (progress events), `12509ec6` (`DesktopObscured`), `bd862d07` (unplugged
+outputs forgotten). Tests: `niri-ipc/src/fork.rs` and `src/tests/fork_ipc.rs`.

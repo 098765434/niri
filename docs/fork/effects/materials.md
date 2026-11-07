@@ -1,16 +1,16 @@
-# Liquid-glass materials
+# Glass materials
 
-Materials are named liquid-glass looks defined in a `materials {}` config block. niri draws
+Materials are named glass looks defined in a `materials {}` config block. niri draws
 them over the blurred background for [blur shapes](blur-shapes.md) that name one, for layer and
 window rules that name one, and for the [workspace mat](../layout/workspace-mat.md).
 
-Status: implemented in `454d9751` (materials), `3cde7327` (materials on rules, `materialize`,
-`report-backdrop`), `a1a78bd0` (`blur-passes`, `blur-offset`), `78620a8c` (`tone`) and
-`7bef7001` (outward lens, `glow`).
+Status: implemented in `e843c4be` (materials), `379f1071` (materials on rules, `materialize`,
+`report-backdrop`), `c0c39971` (`blur-passes`, `blur-offset`), `bf313b9b` (`tone`) and
+`5f986fdf` (outward lens, `glow`).
 
 ## Usage
 
-A shape can name a *material*, a liquid-glass look niri draws over the blurred background: the edge bends what's behind it like a lens, red and blue part slightly there, the rim is lit from one side, and the client's tint is laid on, thicker over a backdrop close to it in brightness.
+A shape can name a *material*, a glass look niri draws over the blurred background: the edge bends what's behind it like a lens, red and blue part slightly there, the rim is lit from one side, and the client's tint is laid on, thicker over a backdrop close to it in brightness.
 Materials are defined in the config, and niri tells clients which names exist; a name that isn't defined draws plain blur.
 
 An example (not the defaults, which are in the table below):
@@ -117,7 +117,7 @@ looks that shapes pick by id. They are drawn by
 
 - SDF-normal refraction at the edge, with red/blue parting (`dispersion`).
 - The lip bends the backdrop in from past the edge (sampling outward along the
-  SDF normal). `74b623a7` had it
+  SDF normal). `39904a0b` had it
   magnify inwards because the capture stopped at the shape's edge; now
   `render_shapes` grows each blur group's capture by the material's
   `refraction`, so the rim shows real backdrop.

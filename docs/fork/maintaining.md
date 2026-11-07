@@ -9,7 +9,7 @@ workflow and every fork commit. The features themselves are in the [index](READM
 |---|---|
 | Upstream | `https://github.com/YaLTeR/niri` (remote: `upstream`) |
 | Fork | `https://github.com/098765434/niri` (remote: `origin`) |
-| Base release | **`v26.04`** (matches the niri 26.04 that nixpkgs 26.05 ships) |
+| Base release | **`v26.04`** (matches the niri 26.04 that nixpkgs 26.05 ships), tagged `fork-base-v26.04` |
 | Fork branch | `ocbk` |
 | The delta | `git log --oneline v26.04..ocbk` |
 
@@ -19,8 +19,9 @@ workflow and every fork commit. The features themselves are in the [index](READM
 |---|---|
 | `ocbk` | the fork; everything below is on it |
 | `pinned-columns` | unmerged work, pushed (`99562604`, based before the docs moved); see [below](#pinned-columns) |
-| `mod-swipe-gestures` | local only, merged into `ocbk` (ends at `6d9306a7`) |
-| `origin/gesture-ipc-events` | the branch's old name, before `8fd4e23e` renamed it to `ocbk`; stale (ends at `c5b8c69d`) |
+| `ocbk-pre-tidy` | `ocbk` before the 2026-11-07 history tidy (`16ab6bdb`), kept until a session has run on the new one |
+| `mod-swipe-gestures` | local only, merged into `ocbk` (ends at `6d9306a7`, a commit of `ocbk-pre-tidy`) |
+| `origin/gesture-ipc-events` | the branch's old name, before it was renamed to `ocbk`; stale (ends at `c5b8c69d`) |
 
 The other `origin/*` branches are upstream's, mirrored by the GitHub fork.
 
@@ -77,20 +78,107 @@ Commit on this branch, then `nix flake update niri-fork` and rebuild.
 
 ## Updating to a new upstream release
 
-The fork keeps its commits on top of a release tag, so updating is a rebase onto the new tag:
+The fork's commits sit on a release tag, and `fork-base-<tag>` marks the tag the current
+`ocbk` is based on (`fork-base-v26.04` today). Updating is a rebase onto the next tag:
 
-```sh
-git fetch --tags upstream
-git rebase --onto <new-tag> v26.04 ocbk
-# On conflicts, find commits upstream already has and skip them:
-git range-diff v26.04 <new-tag> ocbk
-git rebase --skip                            # for each commit range-diff shows as upstreamed
-# then build + test in the dev shell:
-nix develop -c cargo build && nix develop -c cargo test
-```
+1. **Tag the new base.**
+   ```sh
+   git fetch --tags upstream
+   git tag fork-base-<new-tag> <new-tag>
+   git branch ocbk-pre-<new-tag> ocbk     # the way back, until a session has run on the result
+   ```
+2. **Rebase.**
+   ```sh
+   git rebase --onto fork-base-<new-tag> fork-base-v26.04 ocbk
+   ```
+   Conflicts land mostly in the hot files below. Keep upstream's side and re-apply the fork's
+   one-line hook; the logic lives in the fork's own files. For a commit upstream already has,
+   `git rebase --skip`.
+3. **Read the range-diff.**
+   ```sh
+   git range-diff fork-base-v26.04..ocbk-pre-<new-tag> fork-base-<new-tag>..ocbk
+   ```
+   Every commit should match its old self apart from conflict fixes. A commit that disappeared
+   was either upstreamed or dropped by mistake.
+4. **Build and test** in the dev shell: `cargo build`, `cargo test --all --exclude
+   niri-visual-tests -- --skip=::egl` (it includes `fork-docs-parse`), `cargo clippy --all
+   --all-targets`. Then check [what amane-shell relies on](#what-amane-shell-relies-on) still holds:
+   amane-shell's `cargo xtask contract` against the new revision.
+5. **Run a session** on it: `nix flake update niri-fork` in the consuming config, switch, log in
+   again, and check HDR, glass, the mat, the desktop layer and the swipes by eye.
 
-Then replace `v26.04` with the new tag here, in [the index](README.md) and in `FORK.md`, and
-re-pin the consuming config (`nix flake update niri-fork`).
+Then replace `v26.04` with the new tag here, in [the index](README.md) and in `FORK.md`, push
+`ocbk` with `--force-with-lease`, push the `fork-base-<new-tag>` tag, and delete
+`ocbk-pre-<new-tag>` once the session looks right.
+
+### Hot upstream files
+
+The fork keeps its logic in its own files and leaves short hooks in upstream's, so a conflict
+there is a line to re-add. Fork hunks against `v26.04` (`git diff v26.04 -U0 -- <file> | grep -c
+'^@@'`):
+
+| File | Hunks | Lines added | Where the logic lives |
+|---|---|---|---|
+| `src/backend/tty.rs` | 30 (36 before `4e448827`) | 119 (374 before) | `src/backend/tty/hdr.rs` |
+| `src/niri.rs` | 36 (38 before `7f180178`) | 101 (163 before) | `src/niri/fork.rs` |
+| `src/render_helpers/framebuffer_effect.rs` | 20 | 486 | in place: mostly new types and functions appended, so they rarely conflict |
+| `src/render_helpers/background_effect.rs` | 25 | 320 | in place, the same |
+| `src/render_helpers/xray.rs` | 21 | 219 | in place: `compute_uniforms` and buffer release are reworked, so upstream changes to xray conflict here |
+
+What stays in `tty.rs`: the HDR fields on `Surface`, the 10-bit retry when the DRM compositor
+can't be created (it is threaded through upstream's invalid-modifier retry), and the HDR fields of
+the IPC output. In `niri.rs`: the desktop layer's hit-testing, which is inline in upstream's
+closures, and the render order of desktop layers.
+
+### Porting the protocols to Smithay's next dispatch API
+
+Smithay is reworking how protocol objects are dispatched. When the upstream tag that needs it
+arrives, each fork protocol moves over as a unit; nothing outside its file and its `delegate_*!`
+line changes. What each one has today:
+
+| Protocol | File | Global | Objects dispatched | Delegated in |
+|---|---|---|---|---|
+| `niri-blur-shapes-v1` | `src/protocols/blur_shapes.rs` | `niri_blur_shapes_manager_v1` (no global data) | manager, `niri_blur_shapes_v1` (`BlurShapesUserData`) | `src/handlers/background_effect.rs` |
+| `niri-vibrancy-v1` | `src/protocols/vibrancy.rs` | `niri_vibrancy_manager_v1` (no global data) | manager, `niri_vibrancy_v1` (`VibrancyUserData`) | `src/handlers/background_effect.rs` |
+| `niri-secure-fill-v1` | `src/protocols/secure_fill.rs` | `niri_secure_fill_manager_v1` (`SecureFillGlobalData`: the client filter) | manager, `niri_secure_fill_target_v1` (`TargetData`) | `src/handlers/mod.rs` |
+| `wp-color-management-v1` | `src/protocols/color_management.rs` | `wp_color_manager_v1` | manager, output, surface, surface feedback, parametric and ICC creators, image description, its info, and its reference: 9 object types | `src/handlers/background_effect.rs` |
+
+For each: port the `GlobalDispatch` and `Dispatch` impls to the new traits, port the
+`delegate_*!` macro the same way upstream's protocols in `src/protocols/` are ported in that
+tag (follow one of theirs, such as `ext_workspace.rs`), and keep the `*Handler` trait that
+`State` implements unchanged. Colour management is the largest, and its `send_pending_information`
+(replies that destroy the object they're on, sent after dispatch) is the part to check against
+the new API's object lifetimes. Then run the protocol tests in `src/tests/` (colour management
+has its own).
+
+## What amane-shell relies on
+
+amane-shell (through the amane library) uses these. A rebase keeps them, or bumps the feature's
+version in `src/ipc/features.rs` and says so in amane-shell's `docs/integration/contract.md`.
+Stock niri has none of them; a client asks [`Features`](ipc/features.md) first.
+
+| Kind | What | Feature |
+|---|---|---|
+| Wayland protocol | `niri-blur-shapes-v1` version 2 (`resources/niri-blur-shapes-v1.xml`) | `blur-shapes 2` |
+| Wayland protocol | `niri-vibrancy-v1` version 1 | `vibrancy 1` |
+| Wayland protocol | `niri-secure-fill-v1` version 1 | `secure-fill 1` |
+| Wayland protocol | `wp-color-management-v1` (stock protocol) | `hdr 1` |
+| IPC request | `Features` | — |
+| IPC event | `OverviewProgress`, `ViewOffsetChanged`, `WorkspaceSwitchProgress` | `overview-progress`, `view-offset`, `workspace-switch-progress` |
+| IPC event | `DesktopObscured` | `desktop-obscured 1` |
+| IPC field | `Window.is_fullscreen` | `window-fullscreen 1` |
+| IPC field | `Output.hdr_supported`, `hdr_enabled`, `sdr_brightness`, `peak_luminance` | `hdr 1` |
+| IPC action | `MoveColumnToIndex { window_id }` | `move-column-to-index-window-id 1` |
+| IPC action | `Output { action: Hdr }`, `Output { action: SdrBrightness }` | `hdr 1` |
+| Config | `materials {}`, `background-effect { material }` in window and layer rules | `materials 1` |
+| Config | `layout { mat {} }` | `mat 1` |
+| Config | `layer-rule { desktop true }` | `desktop-layer 1` |
+| Config | `output { hdr; sdr-brightness }` | `hdr 1` |
+| Config | `layout { workspace-gap }`, `overview { workspace-gap window-gap }` | none: config only |
+
+The protocol XMLs are copied byte for byte into amane's `protocols/`; amane-shell's `cargo xtask
+contract` checks the copies match at the pinned revisions, and that every IPC name amane sends
+or parses exists in `niri-ipc` here.
 
 ## Upstreaming
 
@@ -107,55 +195,51 @@ re-pin the consuming config (`nix flake update niri-fork`).
 | HDR | maybe in parts: the colour-management protocol and conversion are generic; the composition keeps the fork's gamma-2.2 blending |
 | `Window.is_fullscreen` | likely: one IPC field, defaulted for older clients |
 | Secure fill | no as-is: private protocol, for one password manager's fill |
+| `Features` | no: it lists this fork's features |
 
 ## Commit log
 
-Every commit in `v26.04..ocbk`, oldest first, by feature. Later docs-only commits show in
-`git log --oneline v26.04..ocbk -- docs FORK.md README.md`.
+Every commit in `v26.04..ocbk`, oldest first. On 2026-11-07 the history was tidied: fixups were
+squashed into the commits they fix, each feature's docs went into its commit, edits to
+`docs/wiki` and their later reset were dropped, and nothing in the final tree changed apart from a
+comment. The branch before that is `ocbk-pre-tidy` (`16ab6bdb`).
 
 | Commit | Feature | What |
 |---|---|---|
-| `59fe93e4` | [IPC events](ipc/events.md) | live gesture-progress IPC events |
-| `9d5bf9fc` | [IPC events](ipc/events.md) | fix the duplicate `ScrollingSpace::active_column_idx` the IPC commit added, and un-gate the `#[cfg(test)]` one |
-| `9366e512` | housekeeping | add `FORK.md`; stop tracking `.claude/` |
-| `c5b8c69d` | housekeeping | README fork banner; rebase/range-diff workflow |
-| `8fd4e23e` | housekeeping | rename the work branch to `ocbk` |
-| `b414445c` | housekeeping | `FORK.md` update |
-| `f4367f88` | [mod swipe](gestures/mod-swipe.md) | Mod-held three-finger window swipes |
-| `6d9306a7` | [mod swipe](gestures/mod-swipe.md) | `FORK.md`: document it |
-| `6baa66e5` | [mod swipe](gestures/mod-swipe.md) | design doc |
-| `4177c74f` | [mod swipe](gestures/mod-swipe.md) | step into full width past the widest preset |
-| `13d945b5` | [blur shapes](effects/blur-shapes.md) | `niri-blur-shapes-v1`: rounded, fading blur shapes |
-| `454d9751` | [materials](effects/materials.md) | liquid-glass materials for blur shapes |
-| `74b623a7` | [blur shapes](effects/blur-shapes.md) | magnify inwards at the lip; one element id per blur shape |
-| `76262f47` | housekeeping | feature table in `FORK.md`, design docs in `docs/fork` |
-| `36f2cce3` | [IPC actions](ipc/actions.md) | `MoveColumnToIndex` takes an optional `window_id` |
-| `3cde7327` | [materials](effects/materials.md) | materials on rules, materializing lenses, backdrop readings |
-| `c821108e` | housekeeping | `FORK.md`: rule materials, materialize and backdrop readings |
-| `4c68634c` | [vibrancy](effects/vibrancy.md) | `niri-vibrancy-v1`: blend a surface with what's behind it |
-| `ada326f0` | [vibrancy](effects/vibrancy.md) | plus-darker subtracts, as its formula says |
-| `a1a78bd0` | [materials](effects/materials.md) | a blur of their own (`blur-passes`, `blur-offset`) |
-| `e15dec22` | housekeeping | docs: blur shapes with a material's own blur |
-| `148ff076` | [workspace mat](layout/workspace-mat.md) | draft spec |
-| `78620a8c` | [materials](effects/materials.md) | `tone`, a luminosity adjustment that keeps thin tints readable |
-| `7bef7001` | [materials](effects/materials.md) | outward lens with a capture reach, and `glow` apart from the rim |
-| `58528c07` | [workspace mat](layout/workspace-mat.md) | a workspace mat behind the scrolling layout |
-| `cc098153` | [workspace mat](layout/workspace-mat.md) | docs: the mat in the wiki and `FORK.md` |
-| `f297cd5e` | [workspace mat](layout/workspace-mat.md) | soft ends fade out inside the end columns, and for glass too |
-| `74d6c36d` | [workspace mat](layout/workspace-mat.md) | `behind-bars` |
-| `dab83f82` | [gaps](layout/gaps.md) | `workspace-gap`, overview `workspace-gap` and `window-gap` |
-| `34c91b6b` | [gaps](layout/gaps.md) | measure outside the bars' exclusive zones, allow negatives |
-| `e0139bac` | [gaps](layout/gaps.md) | step by the rounded working-area edges |
-| `871b5ee5` | [desktop layer](layout/desktop-layer.md) | `desktop` layer rule and the `DesktopObscured` event |
-| `cff5af59` and the six after it | housekeeping | docs reorganization: `docs/fork/` feature folders, wiki pages reset to `v26.04`, `FORK.md` stub |
-| `0b2ab4e5` | [effects memory](effects/memory.md) | base chain and background only when used, idle eviction, capture targets released, shape captures dropped, swipe offscreen cleared |
-| `b322b674` | [HDR](display/hdr.md) | HDR10 output: KMS properties, 10-bit scanout, half-float composition encoded to PQ |
-| `cf559b95` | [HDR](display/hdr.md) | `wp-color-management-v1`, HDR surfaces converted and tone-mapped per target |
-| `63e42e39` | [HDR](display/hdr.md) | docs: the composition, KMS and `wp-color-management-v1` |
-| `b0ffbd0d` | [HDR](display/hdr.md) | no crash when a client asks for an image description's information |
-| `b25a5a8d` | [IPC events](ipc/events.md) | `Window.is_fullscreen`, so a bar can hide for a fullscreen window |
-| `c7a113d6` | [IPC events](ipc/events.md) | `is_fullscreen` read before taking the toplevel's lock |
-| `5adb24b8` | [HDR](display/hdr.md) | docs: reference white is the panel's brightness on OLEDs that ignore the backlight |
-| `16384e00` | [secure fill](input/secure-fill.md) | `niri-secure-fill-v1` (`resources/niri-secure-fill-v1.xml`): fill a text field only if it's still the one checked |
-| `e1033b3d` | housekeeping | rustfmt and clippy on the lines the fork added |
-| `72d679c5` | housekeeping | the fork's CI (`.github/workflows/fork.yml`), in the flake's dev shell; upstream's `ci.yml` can't build the fork, since HDR needs libdisplay-info 0.2 |
+| `759c9c3f` | [IPC events](ipc/events.md) | live gesture-progress IPC events |
+| `3e821f3d` | housekeeping | add `FORK.md`; ignore `.claude/` |
+| `44065213` | housekeeping | README fork banner; rebase/range-diff workflow |
+| `1a397bc0` | housekeeping | rename the work branch to `ocbk` |
+| `bf1916c7` | housekeeping | `FORK.md` update |
+| `823b718a` | [mod swipe](gestures/mod-swipe.md) | Mod-held three-finger window swipes, stepping into full width past the widest preset, with its design doc |
+| `113728ce` | [blur shapes](effects/blur-shapes.md) | `niri-blur-shapes-v1`: rounded, fading blur shapes |
+| `e843c4be` | [materials](effects/materials.md) | glass materials for blur shapes |
+| `39904a0b` | [blur shapes](effects/blur-shapes.md) | magnify inwards at the lip; one element id per blur shape |
+| `e6ee524a` | housekeeping | feature table in `FORK.md`, design docs in `docs/fork` |
+| `3a984abc` | [IPC actions](ipc/actions.md) | `MoveColumnToIndex` takes an optional `window_id` |
+| `379f1071` | [materials](effects/materials.md) | materials on rules, materializing lenses, backdrop readings |
+| `14ed7262` | [vibrancy](effects/vibrancy.md) | `niri-vibrancy-v1`: blend a surface with what's behind it |
+| `9cdf1c8d` | [vibrancy](effects/vibrancy.md) | plus-darker subtracts the backdrop |
+| `c0c39971` | [materials](effects/materials.md) | a blur of their own (`blur-passes`, `blur-offset`) |
+| `bf313b9b` | [materials](effects/materials.md) | `tone`, a luminosity adjustment that keeps thin tints readable |
+| `5f986fdf` | [materials](effects/materials.md) | outward lens with a capture reach, and `glow` apart from the rim |
+| `7e622e2d` | [workspace mat](layout/workspace-mat.md) | a workspace mat behind the scrolling layout, with its spec |
+| `3696f762` | [workspace mat](layout/workspace-mat.md) | soft ends fade out inside the end columns, and for glass too |
+| `9165052c` | [workspace mat](layout/workspace-mat.md) | `behind-bars` |
+| `9e57324e` | [gaps](layout/gaps.md) | `workspace-gap`, overview `workspace-gap` and `window-gap` |
+| `f4e61d28` | [gaps](layout/gaps.md) | measure outside the bars' exclusive zones, allow negatives |
+| `193f7663` | [gaps](layout/gaps.md) | step by the rounded working-area edges |
+| `12509ec6` | [desktop layer](layout/desktop-layer.md) | `desktop` layer rule and the `DesktopObscured` event |
+| `9f33ce72` to `8b819f28` | housekeeping | docs reorganization: `docs/fork/` feature folders, the wiki sections moved there, the `FORK.md` stub, this file and the index |
+| `12525c21` | housekeeping | `fork-docs-parse`: the KDL blocks in `docs/fork` parse |
+| `7874959a` | [effects memory](effects/memory.md) | base chain and background only when used, idle eviction, capture targets released, shape captures dropped, swipe offscreen cleared |
+| `ae549528` | [HDR](display/hdr.md) | HDR10 output: KMS properties, 10-bit scanout, half-float composition encoded to PQ |
+| `ddd3381d` | [HDR](display/hdr.md) | `wp-color-management-v1`, HDR surfaces converted and tone-mapped per target; no crash on an image description's information |
+| `26290100` | [IPC events](ipc/events.md) | `Window.is_fullscreen`, read before taking the toplevel's lock |
+| `85a7be33` | [secure fill](input/secure-fill.md) | `niri-secure-fill-v1` (`resources/niri-secure-fill-v1.xml`): fill a text field only if it's still the one checked |
+| `2792bc5a` | housekeeping | the fork's CI (`.github/workflows/fork.yml`), in the flake's dev shell, with the terms check; upstream's `ci.yml` can't build the fork, since HDR needs libdisplay-info 0.2 |
+| `8f8275e6` | housekeeping | docs: `is_fullscreen`, secure fill's commit and protocol, the commit log |
+| `bebe757d` | [features](ipc/features.md) | `Request::Features` and `niri msg features` |
+| `bd862d07` | [IPC events](ipc/events.md) | `DesktopObscured` forgets unplugged outputs; tests for the fork's event-stream state |
+| `7f180178` | housekeeping | `Niri`'s fork parts in `src/niri/fork.rs` |
+| `4e448827` | [HDR](display/hdr.md) | HDR on a TTY output in `src/backend/tty/hdr.rs` |

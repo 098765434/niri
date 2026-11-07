@@ -22,7 +22,7 @@ So every distinct pair costs a chain in every buffer that is sampled. A config w
 all use one pair, or whose `blur {}` matches the most common pair, builds the fewest. Noise and
 saturation are per-element shader uniforms, not part of a chain.
 
-What the fork changed (commit `0b2ab4e5`):
+What the fork changed (commit `7874959a`):
 
 - **The base chain is built only when used.** Upstream's `prepare` always built it. `Xray::render`
   now tells `prepare_with` whether any area draws with the buffer's own options, and an area
@@ -52,7 +52,7 @@ element blits the framebuffer into a texture the size of the shapes' bounds, blu
 its own chain, and shares the blurred texture with the shape elements through `shared` (and one
 `SharedCapture` per further blur group).
 
-Two things were wrong (fixed in `0b2ab4e5`):
+Two things were wrong (fixed in `7874959a`):
 
 - **The chain was rebuilt every frame.** The shared capture was a clone of the blur's own
   output texture. `Blur::prepare_textures` requires that texture to be its alone and otherwise

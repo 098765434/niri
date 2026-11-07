@@ -3,9 +3,9 @@
 Three gaps, each animating with the overview's open and close (gestures included). With none of
 them set, the spacing is stock.
 
-Status: implemented in `dab83f82`; the normal-view gap is measured outside the bars' exclusive
-zones and may be negative since `34c91b6b`, and steps by the rounded working-area edges since
-`e0139bac`.
+Status: implemented in `9e57324e`; the normal-view gap is measured outside the bars' exclusive
+zones and may be negative since `f4e61d28`, and steps by the rounded working-area edges since
+`193f7663`.
 
 ## Usage
 

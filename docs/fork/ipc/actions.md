@@ -1,6 +1,6 @@
 # `MoveColumnToIndex` by window
 
-Status: implemented in `36f2cce3`.
+Status: implemented in `3a984abc`.
 
 An optional `window_id` on the `MoveColumnToIndex` IPC action. With it, niri moves the column
 holding that window to the index, on whichever workspace the window is on, without changing the
