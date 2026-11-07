@@ -42,7 +42,7 @@ jobs:
       - name: test
         run: nix develop -c cargo test --all --exclude niri-visual-tests --locked -- --skip=::egl
 
-  # no Apple platform terms on the lines the fork added (amane-shell's
+  # no other vendor's platform terms on the lines the fork added (amane-shell's
   # scripts/lint-terms, against the release the fork is on)
   terms:
     runs-on: ubuntu-24.04
