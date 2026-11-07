@@ -2385,7 +2385,7 @@ impl Tty {
         niri.ipc_outputs_changed = true;
 
         // clients that manage their colour learn which outputs show HDR
-        niri.color_management_state.set_hdr_outputs(hdr_outputs);
+        niri.fork.color_management.set_hdr_outputs(hdr_outputs);
     }
 
     pub fn ipc_outputs(&self) -> Arc<Mutex<IpcOutputMap>> {

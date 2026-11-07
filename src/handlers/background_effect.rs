@@ -162,7 +162,7 @@ delegate_background_effect!(State);
 
 impl BlurShapesHandler for State {
     fn blur_shapes_state(&mut self) -> &mut crate::protocols::blur_shapes::BlurShapesManagerState {
-        &mut self.niri.blur_shapes_state
+        &mut self.niri.fork.blur_shapes
     }
 
     fn blur_shapes_changed(&mut self, surface: WlSurface) {
@@ -176,7 +176,7 @@ impl crate::protocols::color_management::ColorManagementHandler for State {
     fn color_management_state(
         &mut self,
     ) -> &mut crate::protocols::color_management::ColorManagementState {
-        &mut self.niri.color_management_state
+        &mut self.niri.fork.color_management
     }
 }
 crate::delegate_color_management!(State);

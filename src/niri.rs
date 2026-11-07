@@ -143,16 +143,12 @@ use crate::layout::{
     HitType, Layout, LayoutElement as _, LayoutElementRenderElement, MonitorRenderElement,
 };
 use crate::niri_render_elements;
-use crate::protocols::blur_shapes::BlurShapesManagerState;
-use crate::protocols::color_management::ColorManagementState;
 use crate::protocols::ext_workspace::{self, ExtWorkspaceManagerState};
 use crate::protocols::foreign_toplevel::{self, ForeignToplevelManagerState};
 use crate::protocols::gamma_control::GammaControlManagerState;
 use crate::protocols::mutter_x11_interop::MutterX11InteropManagerState;
 use crate::protocols::output_management::OutputManagementManagerState;
 use crate::protocols::screencopy::{Screencopy, ScreencopyBuffer, ScreencopyManagerState};
-use crate::protocols::secure_fill::SecureFillManagerState;
-use crate::protocols::vibrancy::VibrancyManagerState;
 use crate::protocols::virtual_pointer::VirtualPointerManagerState;
 use crate::render_helpers::blur::BlurOptions;
 use crate::render_helpers::debug::push_opaque_regions;
@@ -187,6 +183,8 @@ use crate::utils::{
 };
 use crate::window::mapped::MappedId;
 use crate::window::{InitialConfigureState, Mapped, ResolvedWindowRules, Unmapped, WindowRef};
+
+mod fork;
 
 const CLEAR_COLOR_LOCKED: [f32; 4] = [0.3, 0.1, 0.1, 1.];
 
@@ -315,10 +313,7 @@ pub struct Niri {
     pub gamma_control_manager_state: GammaControlManagerState,
     pub activation_state: XdgActivationState,
     pub mutter_x11_interop_state: MutterX11InteropManagerState,
-    pub blur_shapes_state: BlurShapesManagerState,
-    pub vibrancy_state: VibrancyManagerState,
-    pub secure_fill_state: SecureFillManagerState,
-    pub color_management_state: ColorManagementState,
+    pub fork: fork::ForkStates,
 
     // This will not work as is outside of tests, so it is gated with #[cfg(test)] for now. In
     // particular, shaders will need to learn about the single pixel buffer. Also, it must be
@@ -773,7 +768,7 @@ impl State {
         self.niri.redraw_queued_outputs(&mut self.backend);
 
         // replies that end by destroying the object they're on go out after dispatch
-        self.niri.color_management_state.send_pending_information();
+        self.niri.fork.color_management.send_pending_information();
 
         {
             let _span = tracy_client::span!("flush_clients");
@@ -1447,12 +1442,7 @@ impl State {
 
         self.niri.config_error_notification.hide();
 
-        if self.niri.config.borrow().materials != config.materials {
-            crate::render_helpers::background_effect::set_materials(&config.materials);
-            let names = config.materials.0.iter().map(|m| m.name.clone()).collect();
-            self.niri.blur_shapes_state.set_materials(names);
-            self.niri.queue_redraw_all();
-        }
+        self.niri.reload_materials(&config.materials);
 
         // Find & orphan removed named workspaces.
         let mut removed_workspaces: Vec<String> = vec![];
@@ -2396,16 +2386,11 @@ impl Niri {
 
         let mutter_x11_interop_state =
             MutterX11InteropManagerState::new::<State, _>(&display_handle, move |_| true);
-        let mut blur_shapes_state = BlurShapesManagerState::new::<State>(&display_handle);
-        let vibrancy_state = VibrancyManagerState::new::<State>(&display_handle);
-        let secure_fill_state =
-            SecureFillManagerState::new::<State, _>(&display_handle, client_is_unrestricted);
-        let color_management_state = ColorManagementState::new::<State>(&display_handle);
-        {
-            let materials = &config.borrow().materials;
-            crate::render_helpers::background_effect::set_materials(materials);
-            blur_shapes_state.set_materials(materials.0.iter().map(|m| m.name.clone()).collect());
-        }
+        let fork = fork::ForkStates::new(
+            &display_handle,
+            &config.borrow().materials,
+            client_is_unrestricted,
+        );
 
         #[cfg(test)]
         let single_pixel_buffer_state = SinglePixelBufferState::new::<State>(&display_handle);
@@ -2600,10 +2585,7 @@ impl Niri {
             gamma_control_manager_state,
             activation_state,
             mutter_x11_interop_state,
-            blur_shapes_state,
-            vibrancy_state,
-            secure_fill_state,
-            color_management_state,
+            fork,
             #[cfg(test)]
             single_pixel_buffer_state,
 
@@ -4611,16 +4593,6 @@ impl Niri {
         layers(true).chain(layers(false))
     }
 
-    /// The opacity a layer surface is drawn with on top of its rules: a desktop layer fades out
-    /// as the overview opens.
-    fn layer_fade(&self, mapped: &MappedLayer) -> f32 {
-        if !mapped.is_desktop() {
-            return 1.;
-        }
-
-        (1. - self.layout.overview_progress_value()).clamp(0., 1.) as f32
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn render_layer_normal<R: NiriRenderer>(
         &self,
@@ -4669,30 +4641,6 @@ impl Niri {
             let loc = geo.loc.to_f64();
             let xray_pos = xray_pos.offset(loc);
             mapped.render_popups(ctx.r(), ns, loc, xray_pos, fade, push);
-        }
-    }
-
-    /// Renders the popups of desktop layers, which stay put at the output's origin like the
-    /// layers themselves but go with the other background popups, above the windows.
-    fn render_desktop_popups<R: NiriRenderer>(
-        &self,
-        mut ctx: RenderCtx<R>,
-        layer_map: &LayerMap,
-        push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
-    ) {
-        for (mapped, geo) in self.layers_in_render_order(layer_map, Layer::Background, true) {
-            if !mapped.is_desktop() {
-                continue;
-            }
-
-            let fade = self.layer_fade(mapped);
-            if fade <= 0. {
-                continue;
-            }
-
-            let loc = geo.loc.to_f64();
-            let xray_pos = XrayPos::default().offset(loc);
-            mapped.render_popups(ctx.r(), None, loc, xray_pos, fade, push);
         }
     }
 
@@ -5573,16 +5521,6 @@ impl Niri {
         }
 
         self.queue_redraw_all();
-    }
-
-    /// Lets go of the screencast and screen-capture targets' xray buffers on every output,
-    /// after a render that used them once. A running cast renders its target again next frame
-    /// and gets them back then.
-    pub fn release_capture_xray(&self) {
-        for state in self.output_state.values() {
-            state.xray.release_target(RenderTarget::Screencast);
-            state.xray.release_target(RenderTarget::ScreenCapture);
-        }
     }
 
     pub fn capture_screenshots<'a>(

@@ -1,0 +1,109 @@
+//! The fork's parts of `Niri` (fork): its protocol states, materials, desktop layers' fade and
+//! popups, and letting capture buffers go. `niri.rs` holds one field and one-line calls, so a
+//! rebase meets few fork hunks there.
+
+use smithay::desktop::LayerMap;
+use smithay::reexports::wayland_server::{Client, DisplayHandle};
+use smithay::wayland::shell::wlr_layer::Layer;
+
+use super::{Niri, State};
+use crate::layer::mapped::LayerSurfaceRenderElement;
+use crate::layer::MappedLayer;
+use crate::protocols::blur_shapes::BlurShapesManagerState;
+use crate::protocols::color_management::ColorManagementState;
+use crate::protocols::secure_fill::SecureFillManagerState;
+use crate::protocols::vibrancy::VibrancyManagerState;
+use crate::render_helpers::renderer::NiriRenderer;
+use crate::render_helpers::xray::XrayPos;
+use crate::render_helpers::{background_effect, RenderCtx, RenderTarget};
+
+/// The fork's Wayland protocol states.
+pub struct ForkStates {
+    pub blur_shapes: BlurShapesManagerState,
+    pub vibrancy: VibrancyManagerState,
+    pub secure_fill: SecureFillManagerState,
+    pub color_management: ColorManagementState,
+}
+
+impl ForkStates {
+    /// Creates the fork's globals, and gives blur shapes the configured materials.
+    pub fn new(
+        display_handle: &DisplayHandle,
+        materials: &niri_config::Materials,
+        client_is_unrestricted: impl Fn(&Client) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        let mut states = Self {
+            blur_shapes: BlurShapesManagerState::new::<State>(display_handle),
+            vibrancy: VibrancyManagerState::new::<State>(display_handle),
+            secure_fill: SecureFillManagerState::new::<State, _>(
+                display_handle,
+                client_is_unrestricted,
+            ),
+            color_management: ColorManagementState::new::<State>(display_handle),
+        };
+        states.set_materials(materials);
+        states
+    }
+
+    fn set_materials(&mut self, materials: &niri_config::Materials) {
+        background_effect::set_materials(materials);
+        let names = materials.0.iter().map(|m| m.name.clone()).collect();
+        self.blur_shapes.set_materials(names);
+    }
+}
+
+impl Niri {
+    /// On a config reload: materials that changed reach the renderer and blur-shape clients, and
+    /// everything draws again.
+    pub fn reload_materials(&mut self, materials: &niri_config::Materials) {
+        if self.config.borrow().materials == *materials {
+            return;
+        }
+        self.fork.set_materials(materials);
+        self.queue_redraw_all();
+    }
+
+    /// Lets go of the screencast and screen-capture targets' xray buffers on every output,
+    /// after a render that used them once. A running cast renders its target again next frame
+    /// and gets them back then.
+    pub fn release_capture_xray(&self) {
+        for state in self.output_state.values() {
+            state.xray.release_target(RenderTarget::Screencast);
+            state.xray.release_target(RenderTarget::ScreenCapture);
+        }
+    }
+
+    /// The opacity a layer surface is drawn with on top of its rules: a desktop layer fades out
+    /// as the overview opens.
+    pub(super) fn layer_fade(&self, mapped: &MappedLayer) -> f32 {
+        if !mapped.is_desktop() {
+            return 1.;
+        }
+
+        (1. - self.layout.overview_progress_value()).clamp(0., 1.) as f32
+    }
+
+    /// Renders the popups of desktop layers, which stay put at the output's origin like the
+    /// layers themselves but go with the other background popups, above the windows.
+    pub(super) fn render_desktop_popups<R: NiriRenderer>(
+        &self,
+        mut ctx: RenderCtx<R>,
+        layer_map: &LayerMap,
+        push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
+    ) {
+        for (mapped, geo) in self.layers_in_render_order(layer_map, Layer::Background, true) {
+            if !mapped.is_desktop() {
+                continue;
+            }
+
+            let fade = self.layer_fade(mapped);
+            if fade <= 0. {
+                continue;
+            }
+
+            let loc = geo.loc.to_f64();
+            let xray_pos = XrayPos::default().offset(loc);
+            mapped.render_popups(ctx.r(), None, loc, xray_pos, fade, push);
+        }
+    }
+}

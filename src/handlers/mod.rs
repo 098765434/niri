@@ -288,7 +288,7 @@ delegate_input_method_manager!(State);
 
 impl SecureFillHandler for State {
     fn secure_fill_state(&mut self) -> &mut SecureFillManagerState {
-        &mut self.niri.secure_fill_state
+        &mut self.niri.fork.secure_fill
     }
 
     fn secure_fill_snapshot(&mut self) -> (Option<TargetKey>, Identity) {
